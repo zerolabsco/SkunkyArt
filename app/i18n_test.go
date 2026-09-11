@@ -27,7 +27,7 @@ func TestEnglishCatalogueCoversEveryKeyTheTemplatesUse(t *testing.T) {
 	}
 
 	for _, f := range files {
-		src, err := os.ReadFile(f)
+		src, err := os.ReadFile(f) //nolint:gosec // G304: the test reads the repository's own template files
 		if err != nil {
 			t.Fatalf("read %s: %v", f, err)
 		}

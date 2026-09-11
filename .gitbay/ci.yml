@@ -1,0 +1,19 @@
+# gitbay CI. One build per push per job; each step runs with `sh -c` and the
+# job stops at the first failure. The image is the runner's default, named
+# here so a bump is a deliberate change.
+jobs:
+  build:
+    image: localhost/gitbay-ci:2
+    steps:
+      - go build ./...
+      - go vet ./...
+  test:
+    image: localhost/gitbay-ci:2
+    steps:
+      - go test ./... -count=1 -race -timeout 10m
+  # Pinned, and run through `go run` so the image needs no linter of its own.
+  # The first run on a runner compiles it; later runs hit the module cache.
+  lint:
+    image: localhost/gitbay-ci:2
+    steps:
+      - go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run ./...
