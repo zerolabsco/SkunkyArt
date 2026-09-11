@@ -67,4 +67,6 @@ and a reader following a direct link to one still gets it.
 
 ## GET /api/random
 
-A random artwork's media — the image itself, not JSON. Honours `nsfw`.
+A random artwork's media — the image itself, not JSON. The pick is made
+among the current daily deviations, which the instance already caches, so
+the call costs no extra upstream request. Honours `nsfw` and `hide-ai`.

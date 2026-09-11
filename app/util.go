@@ -389,6 +389,9 @@ func (s skunkyart) NavBase(c DeviationList) string {
 				list.WriteString("&folder=")
 				list.WriteString(esc(f))
 			}
+			if s.Args.Get("comments") != "" {
+				list.WriteString("&comments=1")
+			}
 			list.WriteString(`">`)
 			list.WriteString(msg)
 			list.WriteString("</a> ")
