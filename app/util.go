@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	htmlesc "html"
+	"html/template"
 	"io"
 	"net/http"
 	"net/url"
@@ -11,7 +13,6 @@ import (
 	"skunkyart/static"
 	"strconv"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/krazywarez/devianter"
@@ -39,6 +40,14 @@ func tryWithExitStatus(err error, code int) {
 	if err != nil {
 		exit(err.Error(), code)
 	}
+}
+
+// esc escapes s for use as HTML text or inside a quoted attribute. The Go-built
+// fragments bypass html/template's contextual escaping because they are handed
+// to it as template.HTML, so every DeviantArt-supplied string they contain has
+// to be escaped here instead.
+func esc(s string) string {
+	return htmlesc.EscapeString(s)
 }
 
 // restore swallows a panic in the calling goroutine so that one bad parse cannot
@@ -101,44 +110,48 @@ type skunkyart struct {
 	API     API
 	Version string
 
+	// The template.HTML fields hold fragments the Go builders already
+	// escaped, so html/template inserts them as-is. Everything typed string is
+	// escaped by the template at the point of use.
 	Templates struct {
 		About instanceAbout
 
-		SomeList  string
-		DDStrips  string
+		SomeList  template.HTML
+		DDStrips  template.HTML
 		Deviation struct {
-			Post       devianter.Post
-			Related    string
-			StringTime string
-			Tags       string
-			Comments   string
+			Post        devianter.Post
+			Description template.HTML
+			Related     template.HTML
+			StringTime  string
+			Tags        template.HTML
+			Comments    template.HTML
 		}
 
 		GroupUser struct {
 			GR           devianter.GRuser
-			Admins       string
+			Admins       template.HTML
 			Group        bool
 			CreationDate string
 
 			About struct {
 				A devianter.About
 
-				DescriptionFormatted string
-				Interests, Social    string
-				Comments             string
+				DescriptionFormatted template.HTML
+				Interests, Social    template.HTML
+				Comments             template.HTML
 				BG                   string
 				BGMeta               devianter.Deviation
 			}
 
 			Gallery struct {
-				Folders string
+				Folders template.HTML
 				Pages   int
-				List    string
+				List    template.HTML
 			}
 		}
 		Search struct {
 			Content devianter.Search
-			List    string
+			List    template.HTML
 		}
 	}
 }
@@ -182,15 +195,19 @@ func URLBuilder(host string, strs ...string) string {
 	return str.String()
 }
 
-// Error responds 502 with the error DeviantArt reported upstream.
+// Error responds 502 with the error DeviantArt reported upstream. Only the
+// first line is shown: a WAF block arrives as a whole HTML page, which is
+// neither readable nor safe to echo.
 func (s skunkyart) Error(dAerr devianter.Error) {
 	s.Writer.WriteHeader(502)
+
+	reason, _, _ := strings.Cut(dAerr.Error, "\n")
 
 	var msg strings.Builder
 	msg.WriteString(`<html><link rel="stylesheet" href="`)
 	msg.WriteString(URLBuilder(s.Host, "stylesheet"))
 	msg.WriteString(`" /><h3>DeviantArt error — '`)
-	msg.WriteString(dAerr.Error)
+	msg.WriteString(esc(reason))
 	msg.WriteString("'</h3></html>")
 
 	wr(s.Writer, msg.String())
@@ -319,11 +336,11 @@ func ConvertDeviantArtURLToSkunkyArt(host, url string) (output string) {
 func BuildUserPlate(host, name string) string {
 	var htm strings.Builder
 	htm.WriteString(`<div class="user-plate"><img src="`)
-	htm.WriteString(URLBuilder(host, "media", "emojitar", name, "?type=a"))
+	htm.WriteString(esc(URLBuilder(host, "media", "emojitar", name, "?type=a")))
 	htm.WriteString(`"><a href="`)
-	htm.WriteString(URLBuilder(host, "group_user", "?type=about&q=", name))
+	htm.WriteString(esc(URLBuilder(host, "group_user", "?type=about&q=", name)))
 	htm.WriteString(`">`)
-	htm.WriteString(name)
+	htm.WriteString(esc(name))
 	htm.WriteString(`</a></div>`)
 	return htm.String()
 }
@@ -355,7 +372,7 @@ func (s skunkyart) NavBase(c DeviationList) string {
 	prevrev := func(msg string, page int, onpage bool) {
 		if !onpage {
 			list.WriteString(`<a href="`)
-			list.WriteString(s._pth)
+			list.WriteString(esc(s._pth))
 			list.WriteString(`?p=`)
 			list.WriteString(strconv.Itoa(page))
 			if s.Type != 0 {
@@ -364,11 +381,11 @@ func (s skunkyart) NavBase(c DeviationList) string {
 			}
 			if s.Query != "" {
 				list.WriteString("&q=")
-				list.WriteString(s.Query)
+				list.WriteString(esc(s.Query))
 			}
 			if f := s.Args.Get("folder"); f != "" {
 				list.WriteString("&folder=")
-				list.WriteString(f)
+				list.WriteString(esc(f))
 			}
 			list.WriteString(`">`)
 			list.WriteString(msg)
