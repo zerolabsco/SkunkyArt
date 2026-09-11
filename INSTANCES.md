@@ -1,5 +1,5 @@
 JSON variant should be used from main:
-[instances.json](https://github.com/krazywarez/skunky-art/blob/main/instances.json)
+[instances.json](https://gitbay.org/krz/skunky-art/raw/main/instances.json)
 
 |Instance|Yggdrasil|I2P|Tor|NSFW|Proxifying|Modified Sources|Country|
 |:------:|:-------:|:-:|:-:|:--:|:--------:|:--------------:|:-----:|

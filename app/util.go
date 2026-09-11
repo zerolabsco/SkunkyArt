@@ -73,7 +73,7 @@ func RefreshInstances() {
 	for {
 		func() {
 			defer restore()
-			instances = Download("https://raw.githubusercontent.com/krazywarez/skunky-art/main/instances.json").Body
+			instances = Download("https://gitbay.org/krz/skunky-art/raw/main/instances.json").Body
 			try(json.Unmarshal(instances, &About))
 		}()
 		time.Sleep(1 * time.Hour)
