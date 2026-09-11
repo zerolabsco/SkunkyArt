@@ -1,6 +1,7 @@
 package app
 
 import (
+	"html/template"
 	"regexp"
 	"strconv"
 	"strings"
@@ -42,33 +43,33 @@ func (s skunkyart) GRUser() {
 					var about = &x.ModuleData.GroupAbout
 					group.Group = true
 					group.CreationDate = x.ModuleData.GroupAbout.FoundatedAt.UTC().String()
-					group.About.DescriptionFormatted = ParseDescription(s.Host, about.Description)
+					group.About.DescriptionFormatted = template.HTML(ParseDescription(s.Host, about.Description)) //nolint:gosec // G203: ParseDescription escapes its input
 				} else if false {
 					group.About.A = x.ModuleData.About
 					var about = &group.About.A
 					group.CreationDate = time.Unix(time.Now().Unix()-x.ModuleData.About.RegDate, 0).UTC().String()
-					group.About.DescriptionFormatted = ParseDescription(s.Host, about.Description)
+					group.About.DescriptionFormatted = template.HTML(ParseDescription(s.Host, about.Description)) //nolint:gosec // G203: ParseDescription escapes its input
 
 					for _, val := range x.ModuleData.About.SocialLinks {
 						var social strings.Builder
 						social.WriteString(`<a target="_blank" href="`)
-						social.WriteString(val.Value)
+						social.WriteString(esc(val.Value))
 						social.WriteString(`">`)
-						social.WriteString(val.Value)
+						social.WriteString(esc(val.Value))
 						social.WriteString("</a><br>")
-						group.About.Social += social.String()
+						group.About.Social += template.HTML(social.String()) //nolint:gosec // G203: escaped above
 					}
 
 					for _, val := range x.ModuleData.About.Interests {
 						var interest strings.Builder
-						interest.WriteString(val.Label)
+						interest.WriteString(esc(val.Label))
 						interest.WriteString(": <b>")
-						interest.WriteString(val.Value)
+						interest.WriteString(esc(val.Value))
 						interest.WriteString("</b><br>")
-						group.About.Interests += interest.String()
+						group.About.Interests += template.HTML(interest.String()) //nolint:gosec // G203: escaped above
 					}
 				}
-				group.About.Comments = s.ParseComments(devianter.GetComments(strconv.Itoa(group.GR.Gruser.ID), "", s.Page, 4))
+				group.About.Comments = template.HTML(s.ParseComments(devianter.GetComments(strconv.Itoa(group.GR.Gruser.ID), "", s.Page, 4))) //nolint:gosec // G203: ParseComments escapes its input
 
 			case "cover_deviation":
 				group.About.BGMeta = x.ModuleData.CoverDeviation.Deviation
@@ -79,7 +80,7 @@ func (s skunkyart) GRUser() {
 				for _, z := range x.ModuleData.GroupAdmins.Results {
 					htm.WriteString(BuildUserPlate(s.Host, z.User.Username))
 				}
-				group.Admins += htm.String()
+				group.Admins += template.HTML(htm.String()) //nolint:gosec // G203: BuildUserPlate escapes its input
 			}
 
 		}
@@ -110,9 +111,9 @@ func (s skunkyart) GRUser() {
 		}
 
 		if folderid > 0 || (s.Type == 'f' && all) {
-			group.Gallery.List = s.DeviationList(content.Content.Results, true, DeviationList{
+			group.Gallery.List = template.HTML(s.DeviationList(content.Content.Results, true, DeviationList{ //nolint:gosec // G203: DeviationList escapes its input
 				More: content.Content.HasMore,
-			})
+			}))
 		} else {
 			for _, x := range content.Content.Gruser.Page.Modules {
 				if len(x.ModuleData.Folders.Results) != 0 {
@@ -124,11 +125,11 @@ func (s skunkyart) GRUser() {
 
 							if !x.Thumb.NSFW || CFG.Nsfw {
 								folders.WriteString(`<a href="`)
-								folders.WriteString(ConvertDeviantArtURLToSkunkyArt(s.Host, x.Thumb.Url))
+								folders.WriteString(esc(ConvertDeviantArtURLToSkunkyArt(s.Host, x.Thumb.Url)))
 								folders.WriteString(`"><img loading="lazy" src="`)
-								folders.WriteString(ParseMedia(s.Host, x.Thumb.Media))
+								folders.WriteString(esc(ParseMedia(s.Host, x.Thumb.Media)))
 								folders.WriteString(`" title="`)
-								folders.WriteString(x.Thumb.Title)
+								folders.WriteString(esc(x.Thumb.Title))
 								folders.WriteString(`"></a>`)
 							} else {
 								folders.WriteString(`<h1>[ <span class="nsfw">NSFW</span> ]</h1>`)
@@ -138,25 +139,25 @@ func (s skunkyart) GRUser() {
 							folders.WriteString(`<a href="group_user?folder=`)
 							folders.WriteString(strconv.Itoa(x.FolderId))
 							folders.WriteString("&q=")
-							folders.WriteString(s.Query)
+							folders.WriteString(esc(s.Query))
 							folders.WriteString("&type=")
 							folders.WriteRune(s.Type)
 							folders.WriteString(`">`)
-							folders.WriteString(x.Name)
+							folders.WriteString(esc(x.Name))
 							folders.WriteString(`</a>`)
 
 							folders.WriteString("</div>")
 						}
 					}
 					folders.WriteString(`</div><h1 id="content"><a href="#content">#</a> Content</h1>`)
-					group.Gallery.Folders = folders.String()
+					group.Gallery.Folders = template.HTML(folders.String()) //nolint:gosec // G203: escaped above
 				}
 
 				if x.Name == "folder_deviations" {
-					group.Gallery.List = s.DeviationList(x.ModuleData.Folder.Deviations, true, DeviationList{
+					group.Gallery.List = template.HTML(s.DeviationList(x.ModuleData.Folder.Deviations, true, DeviationList{ //nolint:gosec // G203: DeviationList escapes its input
 						Pages: x.ModuleData.Folder.Pages,
 						More:  x.ModuleData.Folder.HasMore,
-					})
+					}))
 				}
 			}
 		}
@@ -201,14 +202,14 @@ func (s skunkyart) Deviation(author, postname string) {
 	}
 
 	if post.Post.Deviation.TextContent.Excerpt != "" {
-		post.Post.Description = ParseDescription(s.Host, post.Post.Deviation.TextContent)
+		post.Description = template.HTML(ParseDescription(s.Host, post.Post.Deviation.TextContent)) //nolint:gosec // G203: ParseDescription escapes its input
 	} else {
-		post.Post.Description = ParseDescription(s.Host, post.Post.Deviation.Extended.DescriptionText)
+		post.Description = template.HTML(ParseDescription(s.Host, post.Post.Deviation.Extended.DescriptionText)) //nolint:gosec // G203: ParseDescription escapes its input
 	}
 
 	for _, x := range post.Post.Deviation.Extended.RelatedContent {
 		if len(x.Deviations) != 0 {
-			post.Related += s.DeviationList(x.Deviations, false)
+			post.Related += template.HTML(s.DeviationList(x.Deviations, false)) //nolint:gosec // G203: DeviationList escapes its input
 		}
 	}
 
@@ -216,15 +217,15 @@ func (s skunkyart) Deviation(author, postname string) {
 	for _, x := range post.Post.Deviation.Extended.Tags {
 		var tag strings.Builder
 		tag.WriteString(` <a href="`)
-		tag.WriteString(URLBuilder(s.Host, "search", "?q=", x.Name, "&type=tag"))
+		tag.WriteString(esc(URLBuilder(s.Host, "search", "?q=", x.Name, "&type=tag")))
 		tag.WriteString(`">#`)
-		tag.WriteString(x.Name)
+		tag.WriteString(esc(x.Name))
 		tag.WriteString("</a>")
 
-		post.Tags += tag.String()
+		post.Tags += template.HTML(tag.String()) //nolint:gosec // G203: escaped above
 	}
 
-	post.Comments = s.ParseComments(devianter.GetComments(id, post.Post.Comments.Cursor, s.Page, 1))
+	post.Comments = template.HTML(s.ParseComments(devianter.GetComments(id, post.Post.Comments.Cursor, s.Page, 1))) //nolint:gosec // G203: ParseComments escapes its input
 	post.StringTime = post.Post.Deviation.PublishedTime.UTC().String()
 	post.Post.IMG = ParseMedia(s.Host, post.Post.Deviation.Media)
 
@@ -241,20 +242,20 @@ func (s skunkyart) DD() {
 	var strips strings.Builder
 	for _, x := range dd.Strips {
 		strips.WriteString(`<h3 class="`)
-		strips.WriteString(x.Codename)
+		strips.WriteString(esc(x.Codename))
 		strips.WriteString(`"> <a href="#`)
-		strips.WriteString(x.Codename)
+		strips.WriteString(esc(x.Codename))
 		strips.WriteString(`"># </a>`)
-		strips.WriteString(x.Title)
+		strips.WriteString(esc(x.Title))
 		strips.WriteString(`</h3>`)
 
 		strips.WriteString(s.DeviationList(x.Deviations, false))
 	}
-	s.Templates.DDStrips = strips.String()
-	s.Templates.SomeList = s.DeviationList(dd.Deviations, true, DeviationList{
+	s.Templates.DDStrips = template.HTML(strips.String())                                    //nolint:gosec // G203: escaped above
+	s.Templates.SomeList = template.HTML(s.DeviationList(dd.Deviations, true, DeviationList{ //nolint:gosec // G203: DeviationList escapes its input
 		Pages: 0,
 		More:  dd.HasMore,
-	})
+	}))
 	if !s.Atom {
 		s.ExecuteTemplate("daily.htm", "html", &s)
 	}
@@ -310,14 +311,16 @@ func (s skunkyart) Search() {
 		}
 
 		if len(usernames) != 0 {
-			ss.List += `<div class="content plates">`
+			var plates strings.Builder
+			plates.WriteString(`<div class="content plates">`)
 			for x := range len(usernames) {
-				ss.List += BuildUserPlate(s.Host, usernames[x])
+				plates.WriteString(BuildUserPlate(s.Host, usernames[x]))
 			}
-			ss.List += `</div>`
-			ss.List += s.NavBase(DeviationList{
+			plates.WriteString(`</div>`)
+			plates.WriteString(s.NavBase(DeviationList{
 				More: true,
-			})
+			}))
+			ss.List = template.HTML(plates.String()) //nolint:gosec // G203: BuildUserPlate escapes its input
 		}
 	default:
 		s.ReturnHTTPError(400)
@@ -331,10 +334,10 @@ func (s skunkyart) Search() {
 			return
 		}
 
-		ss.List = s.DeviationList(ss.Content.Results, false, DeviationList{
+		ss.List = template.HTML(s.DeviationList(ss.Content.Results, false, DeviationList{ //nolint:gosec // G203: DeviationList escapes its input
 			Pages: ss.Content.Pages,
 			More:  ss.Content.HasMore,
-		})
+		}))
 	}
 
 	s.ExecuteTemplate("search.htm", "html", &s)
