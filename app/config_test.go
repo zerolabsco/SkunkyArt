@@ -36,3 +36,10 @@ func TestAPICacheDefaults(t *testing.T) {
 		t.Errorf("defaults are %+v, want enabled, 64 MB, 5i", CFG.APICache)
 	}
 }
+
+func TestMediaCacheDefaults(t *testing.T) {
+	c := CFG.Cache
+	if !c.Enabled || c.Lifetime != "1w" || c.MaxSize != 200 || c.MemCache {
+		t.Errorf("defaults are %+v, want enabled, 1w, 200 MB, memcache off", c)
+	}
+}

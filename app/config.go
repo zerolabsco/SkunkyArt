@@ -65,8 +65,10 @@ var CFG = config{
 	Language: "auto",
 	URI:      "/",
 	Cache: cacheConfig{
-		Enabled:        false,
+		Enabled:        true,
 		Path:           "cache",
+		Lifetime:       "1w",
+		MaxSize:        200,
 		UpdateInterval: 1,
 	},
 	APICache: apiCacheConfig{
