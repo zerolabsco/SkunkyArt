@@ -11,10 +11,10 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -275,53 +275,70 @@ func (s skunkyart) loadOrFetchMedia(filePath, mediaURL string) ([]byte, bool) {
 	return dwnld.Body, true
 }
 
-// InitCacheSystem runs the cache rotation loop forever, evicting files past
-// their lifetime and emptying the cache when it outgrows max-size. Run it in its
-// own goroutine.
+// InitCacheSystem runs the cache rotation loop forever: every update-interval
+// seconds it drops files past their lifetime and, when the cache is over
+// max-size, the oldest files until it fits. Run it in its own goroutine.
 func InitCacheSystem() {
 	c := &CFG.Cache
 	for {
-		dir, err := os.ReadDir(c.Path)
-		if err != nil {
-			if os.IsNotExist(err) {
-				try(os.Mkdir(c.Path, 0700))
-				continue
-			}
-			println(err.Error())
+		if err := rotateCache(c.Path, time.Duration(lifetimeParsed)*time.Millisecond, c.MaxSize, time.Now()); err != nil {
+			println("cache rotation:", err.Error())
 		}
-
-		var total int64
-		for _, file := range dir {
-			fileName := c.Path + "/" + file.Name()
-			fileInfo, err := file.Info()
-			try(err)
-
-			if c.Lifetime != "" {
-				now := time.Now().UnixMilli()
-
-				// Sys() is platform-specific and only documented to be a
-				// *syscall.Stat_t on unix; skip rotation rather than panic
-				// if the filesystem reports something else.
-				if stat, ok := fileInfo.Sys().(*syscall.Stat_t); ok {
-					if statTime(stat)+lifetimeParsed <= now {
-						try(os.RemoveAll(fileName))
-					}
-				}
-			}
-
-			total += fileInfo.Size()
-			// if c.MaxSize != 0 && fileInfo.Size() > c.MaxSize {
-			// 	try(os.RemoveAll(fileName))
-			// }
-		}
-
-		if c.MaxSize != 0 && total > c.MaxSize {
-			try(os.RemoveAll(c.Path))
-			try(os.Mkdir(c.Path, 0700))
-		}
-
 		time.Sleep(time.Second * time.Duration(c.UpdateInterval))
 	}
+}
+
+// rotateCache does one rotation pass over dir. Files whose modification time
+// is more than lifetime ago are removed (lifetime 0 keeps everything). If the
+// remaining files exceed maxSize bytes (0 for no cap), the oldest are removed
+// until they fit. Only files are touched, never the directory: in the
+// container it is a bind mount, which cannot be removed, and the old
+// remove-and-recreate logged an error every pass.
+func rotateCache(dir string, lifetime time.Duration, maxSize int64, now time.Time) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return os.Mkdir(dir, 0700)
+		}
+		return err
+	}
+
+	type cached struct {
+		path string
+		size int64
+		mod  time.Time
+	}
+	var files []cached
+	var total int64
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		f := cached{path: dir + "/" + e.Name(), size: info.Size(), mod: info.ModTime()}
+		if lifetime > 0 && !f.mod.Add(lifetime).After(now) {
+			try(os.Remove(f.path))
+			continue
+		}
+		files = append(files, f)
+		total += f.size
+	}
+
+	if maxSize <= 0 || total <= maxSize {
+		return nil
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].mod.Before(files[j].mod) })
+	for _, f := range files {
+		if total <= maxSize {
+			break
+		}
+		try(os.Remove(f.path))
+		total -= f.size
+	}
+	return nil
 }
 
 // cacheFilePath is where the body cached under key lives on disk.
