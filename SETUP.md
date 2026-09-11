@@ -3,6 +3,7 @@ Maximum file size in megabytes, requires numeric value.<br>
 Time units:
 * `i` — minutes
 * `h` — hours
+* `d` — days
 * `w` — weeks
 * `m` — months
 * `y` — years
@@ -23,6 +24,16 @@ Time units:
   * `lifetime` — Cached file life time, requires numeric value, followed by multiplicative suffix (see Time Units for details)
   * `max-size` — Maximum file size in megabytes
   * `update-interval` — Automatic rotation interval
+* `api-cache` — In-memory cache of DeviantArt API responses. Every page,
+  feed poll and API call that asks DeviantArt the same question within the
+  TTL is answered from memory, and concurrent requests for one thing make
+  one upstream call. On by default; DeviantArt bans egress IPs that ask too
+  often, so leave it on unless you are debugging.
+  * `enabled` — boolean, default true
+  * `max-size` — megabytes of response bodies to hold, default 64. Least
+    recently used entries are dropped past this.
+  * `ttl` — how long a response is reused, in the time units above. Default
+    `5i`.
 * `static-path` — This setting determines path to static, which will be copied to RAM when SkunkyArt is started. Useless if you're use binary compiled with 'embed' tag.
 * `download-proxy` — Outbound proxy used when fetching media from DeviantArt's
   CDN. Leave empty (`""`) unless you actually run a proxy: if this points at
