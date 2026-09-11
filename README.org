@@ -7,8 +7,28 @@ this fork keeps it maintained.
 
 * what
 skunkyart. alternative frontend for deviantart. works with no javascript.
+one instance, one config file, no database.
 
 instances: [[file:INSTANCES.md][INSTANCES.md]]
+
+pages:
+
+- ~/~ search box, links to daily deviations and about
+- ~/dd~ daily deviations; ~?atom=true~ for the feed
+- ~/search?q=<q>&type=all|tag|r~ search art, tags, or groups
+- ~/post/<author>/<name-id>~ one deviation, with a link to its comments
+- ~/group_user?q=<name>&type=about|gallery|favourites~ a user or group;
+  ~&atom=true~ on a gallery for its feed
+- ~/api/...~ json, documented in [[file:API.md][API.md]]
+
+[[file:REDIRECTS.md][REDIRECTS.md]] maps deviantart.com urls onto these, for browser redirector
+extensions such as libredirect.
+
+deviantart blocks egress ips that ask too often, so the instance keeps its
+upstream traffic down: api responses are cached in memory and coalesced, media
+and avatars are cached on disk, comments load on request, pages carry
+cache-control headers, crawlers get a robots.txt, and each client has a
+request budget. all of it is on by default and tunable in [[file:SETUP.md][SETUP.md]].
 
 * build
 build with the embed tag to embed presets in the binary. skip the tag if you'll
@@ -20,6 +40,19 @@ go build -tags embed -ldflags "-w -s"
 
 that build reports its version as dev. stamp one in with ~-X
 main.version=<version>~, as the release workflow does from the git tag.
+
+* run
+without docker: put the binary (and ~static/~, unless built with the embed
+tag) in a directory with a ~config.json~, then
+
+#+begin_src sh
+./skunkyart -c config.json
+#+end_src
+
+~config.json~ is optional; without it the built-in defaults listen on
+127.0.0.1:3003 with the caches on. service files for systemd and openrc are in
+[[file:services/][services/]]. put a reverse proxy with tls in front; SETUP.md has the nginx
+stanza.
 
 * docker
 multi-arch images (~linux/amd64~, ~linux/arm64~) publish to ghcr on every release
@@ -37,6 +70,14 @@ reproducible upgrades. [[file:compose.example.yaml][compose.example.yaml]] uses 
 sample config in [[file:config.example.json][config.example.json]]. custom config with ~--config~. directive
 details in [[file:SETUP.md][SETUP.md]].
 
+* develop
+#+begin_src sh
+go test ./... -race
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run ./...
+#+end_src
+
+ci runs both on every push. the roadmap is [[file:ROADMAP.md][ROADMAP.md]].
+
 * instances
-add yours by pr to [[file:instances.json][instances.json]] and [[file:INSTANCES.md][INSTANCES.md]] (or use ~--add-instance~ to
-write both), or open an issue.
+add yours by merge request to [[file:instances.json][instances.json]] and [[file:INSTANCES.md][INSTANCES.md]] (or use
+~--add-instance~ to write both), or open an issue.

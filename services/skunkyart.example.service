@@ -1,11 +1,38 @@
-# Note: i didn't use systemd, so it can be not works :)
+# systemd unit for SkunkyArt. Install the binary and its static/ directory
+# (or a binary built with -tags embed) under /opt/skunkyart, put config.json
+# beside it, then:
+#
+#   cp services/skunkyart.example.service /etc/systemd/system/skunkyart.service
+#   systemctl daemon-reload
+#   systemctl enable --now skunkyart
+#
+# DynamicUser gives the service a throwaway account with no home and no
+# shell; StateDirectory is the one writable place it gets, mounted at
+# /var/lib/skunkyart, which is where the media cache goes.
 
 [Unit]
-Description=Privacy-oriented frontend for DeviantArt
+Description=SkunkyArt, an alternative frontend for DeviantArt
+After=network-online.target
+Wants=network-online.target
 
 [Service]
-Directory=<path-to-dir-with-skunkyart>
-ExecStart=<path-to-dir-skunkyart>
+WorkingDirectory=/opt/skunkyart
+ExecStart=/opt/skunkyart/skunkyart -c /opt/skunkyart/config.json
+Restart=on-failure
+RestartSec=5s
+
+DynamicUser=yes
+StateDirectory=skunkyart
+# Point "cache": {"path": "/var/lib/skunkyart"} at the state directory.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+LockPersonality=yes
 
 [Install]
 WantedBy=multi-user.target
