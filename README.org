@@ -85,5 +85,6 @@ go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run ./...
 ci runs both on every push. the roadmap is [[file:ROADMAP.md][ROADMAP.md]].
 
 * instances
-add yours by merge request to [[file:instances.json][instances.json]] and [[file:INSTANCES.md][INSTANCES.md]] (or use
+instances are checked daily by ci (~scripts/check-instances.py~); a dead one
+turns the build red. add yours by merge request to [[file:instances.json][instances.json]] and [[file:INSTANCES.md][INSTANCES.md]] (or use
 ~--add-instance~ to write both), or open an issue.

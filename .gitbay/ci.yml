@@ -17,3 +17,10 @@ jobs:
     image: localhost/gitbay-ci:2
     steps:
       - go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run ./...
+  # Daily check that every listed instance answers, so INSTANCES.md does not
+  # keep dead links. `build trigger krz/skunky-art instances` runs it now.
+  instances:
+    image: localhost/gitbay-ci:2
+    schedule: "0 6 * * *"
+    steps:
+      - python3 scripts/check-instances.py
