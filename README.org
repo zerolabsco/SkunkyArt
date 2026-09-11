@@ -1,45 +1,42 @@
 #+title: skunkyart
 
 * fork
-fork of SkunkyArt (https://git.macaw.me/skunky/SkunkyArt). upstream
-hasn't updated in over a year, has open bugs, and its listed
-instances are dead links. this fork keeps it maintained.
+fork of SkunkyArt (https://git.macaw.me/skunky/SkunkyArt). upstream hasn't
+updated in over a year, has open bugs, and its listed instances are dead links.
+this fork keeps it maintained.
 
 * what
-skunkyart. alternative frontend for deviantart. works with no
-javascript.
+skunkyart. alternative frontend for deviantart. works with no javascript.
 
-instances: INSTANCES.md
+instances: [[file:INSTANCES.md][INSTANCES.md]]
 
 * build
-build with the embed tag to embed presets in the binary. skip the
-tag if you'll modify templates. add -ldflags "-w -s" (gccgo:
-gccgoflags) to shrink the output:
+build with the embed tag to embed presets in the binary. skip the tag if you'll
+modify templates. add ~-ldflags "-w -s"~ (~gccgo: gccgoflags~) to shrink the output:
 
 #+begin_src sh
 go build -tags embed -ldflags "-w -s"
 #+end_src
 
-that build reports its version as dev. stamp one in with
--X main.version=<version>, as the release workflow does from the
-git tag.
+that build reports its version as dev. stamp one in with ~-X
+main.version=<version>~, as the release workflow does from the git tag.
 
 * docker
-multi-arch images (linux/amd64, linux/arm64) publish to ghcr on
-every release tag:
+multi-arch images (~linux/amd64~, ~linux/arm64~) publish to ghcr on every release
+tag:
 
 #+begin_src sh
 docker pull ghcr.io/krazywarez/skunky-art:latest
 #+end_src
 
-each release is tagged 1.3.3, 1.3, 1, and latest. pin an exact
-version for reproducible upgrades. compose.example.yaml uses the
-image; compose.vpn_example.yml adds an optional vpn egress sidecar.
+each release is tagged 1.3.3, 1.3, 1, and latest. pin an exact version for
+reproducible upgrades. [[file:compose.example.yaml][compose.example.yaml]] uses the image;
+[[file:compose.vpn_example.yml][compose.vpn_example.yml]] adds an optional vpn egress sidecar.
 
 * config
-sample config in config.example.json. custom config with --config.
-directive details in SETUP.md.
+sample config in [[file:config.example.json][config.example.json]]. custom config with ~--config~. directive
+details in [[file:SETUP.md][SETUP.md]].
 
 * instances
-add yours by pr to instances.json and INSTANCES.md (or use
---add-instance to write both), or open an issue.
+add yours by pr to [[file:instances.json][instances.json]] and [[file:INSTANCES.md][INSTANCES.md]] (or use ~--add-instance~ to
+write both), or open an issue.
