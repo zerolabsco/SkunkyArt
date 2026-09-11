@@ -234,7 +234,7 @@ func (s skunkyart) DownloadAndSendMedia(subdomain, path string) {
 	default:
 		s.Writer.Header().Del("Cache-Control")
 		s.Writer.WriteHeader(403)
-		response = []byte("Sorry, butt proxy on this instance are disabled.")
+		response = []byte(esc(T(s.Lang, "error.proxy")))
 	}
 
 	_, _ = s.Writer.Write(response)

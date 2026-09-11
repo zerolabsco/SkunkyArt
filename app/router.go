@@ -146,7 +146,7 @@ func Handler() http.HandlerFunc {
 		switch skunky.Endpoint {
 		// main
 		case "":
-			skunky.ExecuteTemplate("index.htm", "html", &CFG.URI)
+			skunky.ExecuteTemplate("index.htm", "html", &skunky)
 		case "about":
 			skunky.Templates.About = About
 			skunky.ExecuteTemplate("about.htm", "html", &skunky)

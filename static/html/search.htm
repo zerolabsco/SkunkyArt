@@ -1,16 +1,16 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{.Lang}}">
     {{template "head" . }}
     <main>
         {{template "header" . }}
         
         {{if ne .Templates.Search.List ""}}
         {{if ne .Templates.Search.Content.Total 0}}
-        <h1>Results by request '{{.QueryRaw}}': {{.Templates.Search.Content.Total}}</h1>
+        <h1>{{T "search.results"}} '{{.QueryRaw}}': {{.Templates.Search.Content.Total}}</h1>
         {{end}}
         {{.Templates.Search.List}}
         {{else}}
-        <p>No results :(</p>
+        <p>{{T "search.none"}}</p>
         {{end}}
     </main>
 </html>

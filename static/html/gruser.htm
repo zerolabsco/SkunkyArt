@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{.Lang}}">
     {{template "head" . }}
     <main>
         <header>
@@ -59,29 +59,29 @@
             {{end}}
 
             {{if ne .Templates.GroupUser.Admins ""}}
-            <h3 id="admins"><a href="#admins">#</a> Group admins</h3>
+            <h3 id="admins"><a href="#admins">#</a> {{T "user.admins"}}</h3>
             <div class="plates admins">
             {{.Templates.GroupUser.Admins}}
             </div>
             {{end}}
 
             {{if ne .Templates.GroupUser.About.Interests ""}}
-            <h3 id="interests"><a href="#interests">#</a> Interests</h3>
+            <h3 id="interests"><a href="#interests">#</a> {{T "user.interests"}}</h3>
             {{.Templates.GroupUser.About.Interests}}
             {{end}}
 
             {{if ne .Templates.GroupUser.About.Social ""}}
-            <h3 id="social"><a href="#social">#</a> Social Links</h3>
+            <h3 id="social"><a href="#social">#</a> {{T "user.social"}}</h3>
             {{.Templates.GroupUser.About.Social}}
             {{end}}
 
             {{if ne .Templates.GroupUser.About.DescriptionFormatted ""}}
-            <h3 id="about"><a href="#about">#</a> About me</h3>
+            <h3 id="about"><a href="#about">#</a> {{T "user.about"}}</h3>
             {{.Templates.GroupUser.About.DescriptionFormatted}}
             {{end}}
             {{if ne .Templates.GroupUser.About.Comments ""}}
             <br>
-            <h3 id="comments"><a href="#comments">#</a> Comments</h3>
+            <h3 id="comments"><a href="#comments">#</a> {{T "deviation.comments"}}</h3>
             {{.Templates.GroupUser.About.Comments}}
             {{end}}
         {{else}}

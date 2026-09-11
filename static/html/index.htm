@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{.Lang}}">
     <head>
         <title>SkunkyArt</title>
-        <link rel="stylesheet" href="{{.}}stylesheet"/>
-        <link rel="icon" type="image/x-icon" href="{{.}}favicon.ico">
+        <link rel="stylesheet" href="{{.BasePath}}stylesheet"/>
+        <link rel="icon" type="image/x-icon" href="{{.BasePath}}favicon.ico">
         <meta name="viewport" content="width=device-width, height=device-height, initial-scale=0.4"/>
 
         <style>
@@ -70,10 +70,10 @@
         </style>
     </head>
     <main>
-        <img src="{{.}}favicon.ico" title="{{T "index.logo"}}" alt="SkunkyArt logo" draggable="false">
+        <img src="{{.BasePath}}favicon.ico" title="{{T "index.logo"}}" alt="SkunkyArt logo" draggable="false">
         <div>
-            <h1><a href="{{.}}dd">{{T "nav.daily"}}</a> | <a href="{{.}}about">{{T "nav.about"}}</a></h1>
-            <form method="get" action="{{.}}search">
+            <h1><a href="{{.BasePath}}dd">{{T "nav.daily"}}</a> | <a href="{{.BasePath}}about">{{T "nav.about"}}</a></h1>
+            <form method="get" action="{{.BasePath}}search">
                 <input type="text" name="q" aria-label="Search query" placeholder="{{T "search.placeholder"}}" autocomplete="off" autocapitalize="none" spellcheck="false">
                 <select name="type" aria-label="Search type">
                     <option value="all">{{T "search.all"}}</option>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{.Lang}}">
     {{template "head" . }}
     <main>
         {{template "header" . }}
@@ -19,7 +19,7 @@
             {{if (ne .Templates.Deviation.Tags "")}}
             {{.Templates.Deviation.Tags}}<br>
             {{end}}
-            <span>{{T "deviation.published"}}<strong>{{.Templates.Deviation.StringTime}}</strong>; Views: <strong>{{.Templates.Deviation.Post.Deviation.Stats.Views}}</strong>; Favourites: <strong>{{.Templates.Deviation.Post.Deviation.Stats.Favourites}}</strong>; Downloads: <strong>{{.Templates.Deviation.Post.Deviation.Stats.Downloads}}</strong>
+            <span>{{T "deviation.published"}}<strong>{{.Templates.Deviation.StringTime}}</strong>; {{T "deviation.views"}}: <strong>{{.Templates.Deviation.Post.Deviation.Stats.Views}}</strong>; {{T "nav.favourites"}}: <strong>{{.Templates.Deviation.Post.Deviation.Stats.Favourites}}</strong>; {{T "deviation.downloads"}}: <strong>{{.Templates.Deviation.Post.Deviation.Stats.Downloads}}</strong>
             <br><a target="_blank" href="https://www.deviantart.com/{{.Templates.Deviation.Post.Deviation.Author.Username}}/art/art-{{.Templates.Deviation.Post.Deviation.ID}}">{{T "deviation.original"}}</a>
             </span>
             {{if (ne .Templates.Deviation.Description "")}}

@@ -116,3 +116,50 @@ func TestResolveLangReadsAcceptLanguage(t *testing.T) {
 		t.Errorf("pinned-but-missing = %q, want %q", got, DefaultLang)
 	}
 }
+
+// TestSpanishCatalogueMatchesEnglish keeps the two catalogues in step: a key
+// added to one and not the other falls back to English silently, which is
+// fine for a contributor's partial translation but not for the shipped one.
+func TestSpanishCatalogueMatchesEnglish(t *testing.T) {
+	read := func(name string) map[string]string {
+		body, err := os.ReadFile("../static/lang/" + name) //nolint:gosec // G304: the test reads the repository's own catalogues
+		if err != nil {
+			t.Fatal(err)
+		}
+		var c map[string]string
+		if err := json.Unmarshal(body, &c); err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	en, es := read("en.json"), read("es.json")
+	for k := range en {
+		if _, ok := es[k]; !ok {
+			t.Errorf("es.json lacks %q", k)
+		}
+	}
+	for k := range es {
+		if _, ok := en[k]; !ok {
+			t.Errorf("es.json has %q, which en.json does not", k)
+		}
+	}
+}
+
+// TestGoBuiltStringsAreInTheCatalogue lists every key the Go builders ask for,
+// so a typo in a T call shows up here rather than as the key on a page.
+func TestGoBuiltStringsAreInTheCatalogue(t *testing.T) {
+	src, err := os.ReadFile("../static/lang/en.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var en map[string]string
+	if err := json.Unmarshal(src, &en); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"comments.failed", "comments.reply_to", "list.text", "nav.prev", "nav.next",
+		"gallery.folders", "gallery.content", "error.nsfw", "error.proxy", "error.upstream", "deviation.comments", "deviation.open"} {
+		if _, ok := en[key]; !ok {
+			t.Errorf("en.json lacks %q, which Go code asks for", key)
+		}
+	}
+}

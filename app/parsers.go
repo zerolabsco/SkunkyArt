@@ -15,13 +15,15 @@ import (
 // fetch errored.
 func (s skunkyart) ParseComments(c devianter.Comments, daError devianter.Error) string {
 	if daError.RAW != nil {
-		return "Failed to fetch comments :("
+		return esc(T(s.Lang, "comments.failed"))
 	}
 
 	var cmmts strings.Builder
 	replied := make(map[int]string)
 
-	cmmts.WriteString("<details><summary>Comments: <b>")
+	cmmts.WriteString("<details><summary>")
+	cmmts.WriteString(esc(T(s.Lang, "deviation.comments")))
+	cmmts.WriteString(": <b>")
 	cmmts.WriteString(strconv.Itoa(c.Total))
 	cmmts.WriteString("</b></summary>")
 	for _, x := range c.Thread {
@@ -49,7 +51,9 @@ func (s skunkyart) ParseComments(c devianter.Comments, daError devianter.Error) 
 		cmmts.WriteString("</b></a> ")
 
 		if x.Parent > 0 {
-			cmmts.WriteString(` In reply to <a href="`)
+			cmmts.WriteString(" ")
+			cmmts.WriteString(esc(T(s.Lang, "comments.reply_to")))
+			cmmts.WriteString(` <a href="`)
 			cmmts.WriteString(esc(s._pth))
 			cmmts.WriteString("#")
 			cmmts.WriteString(strconv.Itoa(x.Parent))
@@ -152,13 +156,13 @@ func (s skunkyart) DeviationList(devs []devianter.Deviation, allowAtom bool, con
 			} else {
 				listContent.WriteString(`<div class="block">`)
 				if fullview != "" && preview != "" {
-					listContent.WriteString(`<a title="open/download" href="`)
+					listContent.WriteString(`<a title="` + esc(T(s.Lang, "deviation.open")) + `" href="`)
 					listContent.WriteString(fullview)
 					listContent.WriteString(`"><img loading="lazy" src="`)
 					listContent.WriteString(preview)
 					listContent.WriteString(`" width="15%"></a>`)
 				} else {
-					listContent.WriteString(`<h1>[ TEXT ]</h1>`)
+					listContent.WriteString("<h1>[ " + esc(T(s.Lang, "list.text")) + " ]</h1>")
 				}
 				listContent.WriteString(`<br><a href="`)
 				listContent.WriteString(postURL)
