@@ -43,3 +43,40 @@ func TestMediaCacheDefaults(t *testing.T) {
 		t.Errorf("defaults are %+v, want enabled, 1w, 200 MB, memcache off", c)
 	}
 }
+
+// withScratchConfig points CFG at a config path under a temporary directory,
+// with the media cache off so no rotation goroutine starts, and restores the
+// whole configuration afterwards.
+func withScratchConfig(t *testing.T, path string, explicit bool) {
+	t.Helper()
+	cfg, limiter, exp := CFG, daLimiter, cfgExplicit
+	CFG.cfg = path
+	CFG.Cache.Enabled = false
+	cfgExplicit = explicit
+	t.Cleanup(func() { CFG, daLimiter, cfgExplicit = cfg, limiter, exp })
+}
+
+func TestExecuteConfigRunsWithoutTheDefaultFile(t *testing.T) {
+	withScratchConfig(t, t.TempDir()+"/config.json", false)
+	msgs := captureExit(t)
+
+	ExecuteConfig()
+
+	if len(*msgs) != 0 {
+		t.Errorf("exit called with %v; want a start on the built-in defaults", *msgs)
+	}
+	if CFG.Listen != "127.0.0.1:3003" || CFG.Nsfw {
+		t.Errorf("defaults not in effect: listen %q nsfw %v", CFG.Listen, CFG.Nsfw)
+	}
+}
+
+func TestExecuteConfigExitsOnAMissingExplicitFile(t *testing.T) {
+	withScratchConfig(t, t.TempDir()+"/named.json", true)
+	msgs := captureExit(t)
+
+	ExecuteConfig()
+
+	if len(*msgs) == 0 {
+		t.Error("a missing file named with -c started the instance, want an exit")
+	}
+}

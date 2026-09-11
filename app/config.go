@@ -83,7 +83,7 @@ var CFG = config{
 	StaticPath: "static",
 	UserAgent:  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
 	Proxy:      true,
-	Nsfw:       true,
+	Nsfw:       false,
 }
 
 var lifetimeParsed int64
@@ -143,76 +143,89 @@ func checkCacheWritable(path string) error {
 	return os.Remove(probe)
 }
 
+// cfgExplicit records that -c named the config file, so a missing one is an
+// error rather than a fall-back to the defaults.
+var cfgExplicit bool
+
 // ExecuteConfig loads the config file into CFG, validates it, and starts the
-// cache rotation loop if caching is on. It exits the process on a config that
-// cannot be read, that asks for caching without proxying, or that points caching
-// at a directory this process cannot write.
+// cache rotation loop if caching is on. A missing default config.json means
+// the built-in defaults; a missing file named with -c exits. It also exits on
+// a config that cannot be parsed, that asks for caching without proxying, or
+// that points caching at a directory this process cannot write.
 func ExecuteConfig() {
-	if CFG.cfg != "" {
-		f, err := os.ReadFile(CFG.cfg)
-		tryWithExitStatus(err, 1)
+	f, err := os.ReadFile(CFG.cfg)
+	switch {
+	case err == nil:
 		tryWithExitStatus(json.Unmarshal(f, &CFG), 1)
-		if CFG.Cache.Enabled && !CFG.Proxy {
-			exit("Incompatible settings detected: cannot use caching media content without proxy", 1)
-		}
-
-		if CFG.Cache.Enabled {
-			if err := checkCacheWritable(CFG.Cache.Path); err != nil {
-				exit("Cache directory is not writable by this process (uid "+
-					strconv.Itoa(os.Getuid())+"): "+err.Error()+
-					"\nGrant that uid write access to the directory, or set cache.enabled to false."+
-					"\nThe official container image runs as uid 10000, so a bind-mounted cache needs:"+
-					"\n  chown -R 10000:10000 <cache dir on the host>", 1)
-			}
-
-			if CFG.Cache.Lifetime != "" {
-				d, err := parseLifetime(CFG.Cache.Lifetime)
-				if err != nil {
-					exit("config: cache.lifetime: "+err.Error(), 1)
-				}
-				lifetimeParsed = d.Milliseconds()
-			}
-			// max-size is documented in megabytes. This was 1024^2, which in Go is
-			// XOR (1026), not exponentiation — so the cap was ~1000x too small.
-			CFG.Cache.MaxSize *= 1024 * 1024
-			go InitCacheSystem()
-			if CFG.Cache.MemCache {
-				go InitMemCacheJanitor()
-			}
-		}
-
-		About = instanceAbout{
-			Proxy:  CFG.Proxy,
-			Nsfw:   CFG.Nsfw,
-			HideAI: CFG.HideAI,
-			Theme:  CFG.Theme,
-		}
-
-		// A theme the stylesheet cannot honour would silently fall back to auto,
-		// so say so instead.
-		switch CFG.Theme {
-		case "auto", "dark", "light":
-		default:
-			exit("config: theme must be one of auto, dark, light; got "+CFG.Theme, 1)
-		}
-
-		if CFG.APICache.Enabled {
-			d, err := parseLifetime(CFG.APICache.TTL)
-			if err != nil {
-				exit("config: api-cache.ttl: "+err.Error(), 1)
-			}
-			apiCacheTTL = d
-		}
-
-		// per-minute 0 turns the limit off; a burst below one token would
-		// refuse every request, so it is floored to one.
-		if CFG.RateLimit.PerMinute > 0 {
-			daLimiter = newRateLimiter(CFG.RateLimit.PerMinute, max(CFG.RateLimit.Burst, 1))
-		}
-
-		static.StaticPath = CFG.StaticPath
-		devianter.UserAgent = CFG.UserAgent
+	case os.IsNotExist(err) && !cfgExplicit:
+		// The default file is optional: the built-in defaults are a working
+		// instance. A path given with -c is not, since a typo there would
+		// otherwise start something the operator did not configure.
+		println("no", CFG.cfg, "found; running with the built-in defaults")
+	default:
+		tryWithExitStatus(err, 1)
 	}
+
+	if CFG.Cache.Enabled && !CFG.Proxy {
+		exit("Incompatible settings detected: cannot use caching media content without proxy", 1)
+	}
+
+	if CFG.Cache.Enabled {
+		if err := checkCacheWritable(CFG.Cache.Path); err != nil {
+			exit("Cache directory is not writable by this process (uid "+
+				strconv.Itoa(os.Getuid())+"): "+err.Error()+
+				"\nGrant that uid write access to the directory, or set cache.enabled to false."+
+				"\nThe official container image runs as uid 10000, so a bind-mounted cache needs:"+
+				"\n  chown -R 10000:10000 <cache dir on the host>", 1)
+		}
+
+		if CFG.Cache.Lifetime != "" {
+			d, err := parseLifetime(CFG.Cache.Lifetime)
+			if err != nil {
+				exit("config: cache.lifetime: "+err.Error(), 1)
+			}
+			lifetimeParsed = d.Milliseconds()
+		}
+		// max-size is documented in megabytes. This was 1024^2, which in Go is
+		// XOR (1026), not exponentiation — so the cap was ~1000x too small.
+		CFG.Cache.MaxSize *= 1024 * 1024
+		go InitCacheSystem()
+		if CFG.Cache.MemCache {
+			go InitMemCacheJanitor()
+		}
+	}
+
+	About = instanceAbout{
+		Proxy:  CFG.Proxy,
+		Nsfw:   CFG.Nsfw,
+		HideAI: CFG.HideAI,
+		Theme:  CFG.Theme,
+	}
+
+	// A theme the stylesheet cannot honour would silently fall back to auto,
+	// so say so instead.
+	switch CFG.Theme {
+	case "auto", "dark", "light":
+	default:
+		exit("config: theme must be one of auto, dark, light; got "+CFG.Theme, 1)
+	}
+
+	if CFG.APICache.Enabled {
+		d, err := parseLifetime(CFG.APICache.TTL)
+		if err != nil {
+			exit("config: api-cache.ttl: "+err.Error(), 1)
+		}
+		apiCacheTTL = d
+	}
+
+	// per-minute 0 turns the limit off; a burst below one token would
+	// refuse every request, so it is floored to one.
+	if CFG.RateLimit.PerMinute > 0 {
+		daLimiter = newRateLimiter(CFG.RateLimit.PerMinute, max(CFG.RateLimit.Burst, 1))
+	}
+
+	static.StaticPath = CFG.StaticPath
+	devianter.UserAgent = CFG.UserAgent
 }
 
 // forcedThemeCSS returns a block that pins the palette when the instance has

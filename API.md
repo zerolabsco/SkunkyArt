@@ -25,7 +25,7 @@ Version and the instance's settings.
 Parameters:
 
 * `q` — required. The search query.
-* `type` — `a` art (default), `t` text, `g` gallery, `f` favourites.
+* `type` — `a` art (default), `t` tag, `g` gallery, `f` favourites.
 * `usr` — required for `g` and `f`; the user whose gallery or favourites to read.
 * `p` — page number, default 0.
 

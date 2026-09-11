@@ -4,7 +4,7 @@
     "cache": {
         "enabled": true,
         "path": "cache",
-        "lifetime": null,
+        "lifetime": "1w",
         "max-size": 200,
         "memcache": false,
         "update-interval": 5

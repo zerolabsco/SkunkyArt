@@ -28,6 +28,7 @@ Copyright lost+skunk and zerolabs, X11. https://github.com/krazywarez/skunky-art
 		case "-c", "--config":
 			if n+1 < len(a) {
 				CFG.cfg = a[n+1]
+				cfgExplicit = true
 			} else {
 				exit("Not enought arguments", 1)
 			}
