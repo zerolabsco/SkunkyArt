@@ -39,7 +39,18 @@ go build -tags embed -ldflags "-w -s"
 #+end_src
 
 that build reports its version as dev. stamp one in with ~-X
-main.version=<version>~, as the release workflow does from the git tag.
+main.version=<version>~, as the release workflow does from the git tag. or let
+the makefile do both:
+
+#+begin_src sh
+make build   # embed tag, version from git describe
+make test
+make lint
+make dist    # tarballs for linux, darwin and freebsd under dist/
+#+end_src
+
+release tags also get those tarballs attached on the github mirror's release
+page.
 
 * run
 without docker: put the binary (and ~static/~, unless built with the embed
