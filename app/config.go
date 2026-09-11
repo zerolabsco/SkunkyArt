@@ -34,20 +34,26 @@ type apiCacheConfig struct {
 	TTL     string `json:"ttl"`
 }
 
+type rateLimitConfig struct {
+	PerMinute int `json:"per-minute"`
+	Burst     int `json:"burst"`
+}
+
 type config struct {
 	cfg           string
-	Listen        string         `json:"listen"`
-	URI           string         `json:"uri"`
-	Cache         cacheConfig    `json:"cache"`
-	APICache      apiCacheConfig `json:"api-cache"`
-	Proxy         bool           `json:"proxy"`
-	Nsfw          bool           `json:"nsfw"`
-	HideAI        bool           `json:"hide-ai"`
-	Theme         string         `json:"theme"`
-	Language      string         `json:"language"`
-	UserAgent     string         `json:"user-agent"`
-	DownloadProxy string         `json:"download-proxy"`
-	StaticPath    string         `json:"static-path"`
+	Listen        string          `json:"listen"`
+	URI           string          `json:"uri"`
+	Cache         cacheConfig     `json:"cache"`
+	APICache      apiCacheConfig  `json:"api-cache"`
+	RateLimit     rateLimitConfig `json:"rate-limit"`
+	Proxy         bool            `json:"proxy"`
+	Nsfw          bool            `json:"nsfw"`
+	HideAI        bool            `json:"hide-ai"`
+	Theme         string          `json:"theme"`
+	Language      string          `json:"language"`
+	UserAgent     string          `json:"user-agent"`
+	DownloadProxy string          `json:"download-proxy"`
+	StaticPath    string          `json:"static-path"`
 }
 
 // CFG is the running instance's configuration, holding the defaults below until
@@ -67,6 +73,10 @@ var CFG = config{
 		Enabled: true,
 		MaxSize: 64,
 		TTL:     "5i",
+	},
+	RateLimit: rateLimitConfig{
+		PerMinute: 60,
+		Burst:     20,
 	},
 	StaticPath: "static",
 	UserAgent:  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
@@ -190,6 +200,12 @@ func ExecuteConfig() {
 				exit("config: api-cache.ttl: "+err.Error(), 1)
 			}
 			apiCacheTTL = d
+		}
+
+		// per-minute 0 turns the limit off; a burst below one token would
+		// refuse every request, so it is floored to one.
+		if CFG.RateLimit.PerMinute > 0 {
+			daLimiter = newRateLimiter(CFG.RateLimit.PerMinute, max(CFG.RateLimit.Burst, 1))
 		}
 
 		static.StaticPath = CFG.StaticPath
