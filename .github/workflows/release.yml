@@ -89,7 +89,7 @@ jobs:
           fetch-depth: 0
 
       - name: Build tarballs
-        run: docker run --rm -v "$PWD":/src -w /src -e VERSION="${GITHUB_REF_NAME#v}" golang:1.25 make dist
+        run: docker run --rm -v "$PWD":/src -w /src -e VERSION="${GITHUB_REF_NAME#v}" golang:1.26 make dist
 
       - name: Attach to the release
         env:
