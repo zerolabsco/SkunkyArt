@@ -34,6 +34,20 @@ Time units:
     recently used entries are dropped past this.
   * `ttl` — how long a response is reused, in the time units above. Default
     `5i`.
+* `rate-limit` — Per-client budget for page, feed and API requests, so one
+  crawler cannot spend the whole upstream budget. Media, avatars and static
+  files are not counted. Over budget answers 429 with `Retry-After`.
+  Behind a reverse proxy the client is taken from the rightmost
+  `X-Forwarded-For` entry, but only when the connection itself comes from a
+  loopback or private address; a direct client's header is ignored.
+  * `per-minute` — sustained requests per minute per client, default 60.
+    `0` turns the limit off.
+  * `burst` — how many requests a client can make at once before the rate
+    applies, default 20.
+
+`/robots.txt` is served automatically. It disallows search, the API, user
+and group pages, media and paginated URLs, and asks for a 10 second crawl
+delay; the index, daily deviations and posts stay crawlable.
 * `static-path` — This setting determines path to static, which will be copied to RAM when SkunkyArt is started. Useless if you're use binary compiled with 'embed' tag.
 * `download-proxy` — Outbound proxy used when fetching media from DeviantArt's
   CDN. Leave empty (`""`) unless you actually run a proxy: if this points at

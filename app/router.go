@@ -137,6 +137,12 @@ func Handler() http.HandlerFunc {
 		w.Header().Add("X-Frame-Options", "DENY")
 		w.Header().Set("Cache-Control", cacheControlPage)
 
+		if daLimiter != nil && limited(skunky.Endpoint) && !daLimiter.allow(clientAddr(r)) {
+			w.Header().Set("Retry-After", "60")
+			skunky.ReturnHTTPError(http.StatusTooManyRequests)
+			return
+		}
+
 		switch skunky.Endpoint {
 		// main
 		case "":
@@ -182,6 +188,10 @@ func Handler() http.HandlerFunc {
 		case "favicon.ico":
 			w.Header().Set("Cache-Control", cacheControlAssets)
 			_, _ = w.Write(open("images/logo.png"))
+		case "robots.txt":
+			w.Header().Set("Cache-Control", cacheControlAssets)
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			wr(w, robotsTXT(CFG.URI))
 
 		// API
 		case "api":
