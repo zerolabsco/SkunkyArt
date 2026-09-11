@@ -10,9 +10,38 @@ import (
 	"time"
 )
 
+// Cache-Control values by route. Signed wixmp media never changes under its
+// URL; avatars, emotes and static assets change rarely; pages and API JSON
+// follow the API cache's default TTL so a reverse proxy can hold them too.
+// Error responses drop the header (see ReturnHTTPError and friends) so a
+// failure is never remembered.
+const (
+	cacheControlMedia  = "public, max-age=31536000, immutable"
+	cacheControlAssets = "public, max-age=86400"
+	cacheControlPage   = "public, max-age=300"
+)
+
 // Router registers the single catch-all handler that dispatches every path, then
 // serves until the process exits. It does not return on success.
 func Router() {
+	http.HandleFunc("/", Handler())
+	println("SkunkyArt is listening on", CFG.Listen)
+
+	// Explicit timeouts: the bare http.ListenAndServe has none, so a slow client
+	// can hold a connection (and its handler) open indefinitely. WriteTimeout is
+	// generous because media proxying streams large files through a handler.
+	srv := &http.Server{
+		Addr:              CFG.Listen,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      120 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	tryWithExitStatus(srv.ListenAndServe(), 1)
+}
+
+// Handler returns the single catch-all handler that dispatches every path.
+func Handler() http.HandlerFunc {
 	parsepath := func(path string) map[int]string {
 		if l := len(CFG.URI); len(path) > l {
 			path = path[l-1:]
@@ -62,7 +91,7 @@ func Router() {
 	}
 
 	// the function that drives everything
-	handle := func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		path := parsepath(r.URL.Path)
 
 		// Per-request, not a package global: requests arrive concurrently on
@@ -106,6 +135,7 @@ func Router() {
 		}
 
 		w.Header().Add("X-Frame-Options", "DENY")
+		w.Header().Set("Cache-Control", cacheControlPage)
 
 		switch skunky.Endpoint {
 		// main
@@ -130,11 +160,16 @@ func Router() {
 				if a := arg("filename"); a != "" {
 					skunky.SetFilename(a)
 				}
+				w.Header().Set("Cache-Control", cacheControlMedia)
 				skunky.DownloadAndSendMedia(path[3], next(path, 4))
 			case "emojitar":
+				w.Header().Set("Cache-Control", cacheControlAssets)
 				skunky.Emojitar(path[3])
+			default:
+				skunky.ReturnHTTPError(404)
 			}
 		case "stylesheet":
+			w.Header().Set("Cache-Control", cacheControlAssets)
 			w.Header().Add("Content-Type", "text/css")
 			_, _ = w.Write(open("css/skunky.css"))
 			// "auto" is the stylesheet as written: dark, with a light palette
@@ -145,6 +180,7 @@ func Router() {
 				_, _ = w.Write([]byte(css))
 			}
 		case "favicon.ico":
+			w.Header().Set("Cache-Control", cacheControlAssets)
 			_, _ = w.Write(open("images/logo.png"))
 
 		// API
@@ -168,19 +204,4 @@ func Router() {
 			skunky.ReturnHTTPError(404)
 		}
 	}
-
-	http.HandleFunc("/", handle)
-	println("SkunkyArt is listening on", CFG.Listen)
-
-	// Explicit timeouts: the bare http.ListenAndServe has none, so a slow client
-	// can hold a connection (and its handler) open indefinitely. WriteTimeout is
-	// generous because media proxying streams large files through a handler.
-	srv := &http.Server{
-		Addr:              CFG.Listen,
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      120 * time.Second,
-		IdleTimeout:       120 * time.Second,
-	}
-	tryWithExitStatus(srv.ListenAndServe(), 1)
 }
