@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"math/rand"
+	"net/url"
 	"strings"
 
 	"github.com/krazywarez/devianter"
@@ -52,15 +53,23 @@ func (a API) sendMedia(d *devianter.Deviation) {
 		return
 	}
 
-	if CFG.Proxy {
-		mediaURL = mediaURL[21:]
-		dot := strings.Index(mediaURL, ".")
-		a.main.Writer.Header().Del("Content-Type")
-		a.main.DownloadAndSendMedia(mediaURL[:dot], mediaURL[dot+11:])
-	} else {
+	if !CFG.Proxy {
 		a.main.Writer.Header().Add("Location", mediaURL)
 		a.main.Writer.WriteHeader(302)
+		return
 	}
+
+	// Parsed, not sliced: the signing token has to reach wixmp as a query
+	// parameter. Passing the raw tail as the path put "?token=..." inside
+	// the path, which wixmp answers with 401.
+	u, err := url.Parse(mediaURL)
+	if err != nil {
+		a.Error("bad media url", 502)
+		return
+	}
+	subdomain := strings.TrimSuffix(strings.TrimPrefix(u.Host, "images-wixmp-"), ".wixmp.com")
+	a.main.Writer.Header().Del("Content-Type")
+	a.main.downloadAndSendMedia(subdomain, strings.TrimPrefix(u.Path, "/"), u.Query().Get("token"))
 }
 
 // fetchDailyDeviations is devianter.GetDailyDeviations behind a variable so

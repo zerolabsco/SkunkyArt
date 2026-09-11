@@ -194,7 +194,14 @@ func buildMediaURL(subdomain, path, token string) (string, bool) {
 // client, serving it from the on-disk or in-memory cache when enabled. It
 // responds 403 when proxying is turned off for this instance.
 func (s skunkyart) DownloadAndSendMedia(subdomain, path string) {
-	mediaURL, ok := buildMediaURL(subdomain, path, s.Args.Get("token"))
+	s.downloadAndSendMedia(subdomain, path, s.Args.Get("token"))
+}
+
+// fetchMedia is Download behind a variable so tests can script the CDN.
+var fetchMedia = Download
+
+func (s skunkyart) downloadAndSendMedia(subdomain, path, token string) {
+	mediaURL, ok := buildMediaURL(subdomain, path, token)
 	if !ok {
 		s.ReturnHTTPError(400)
 		return
@@ -225,7 +232,7 @@ func (s skunkyart) DownloadAndSendMedia(subdomain, path string) {
 			memPut(key, response)
 		}
 	case CFG.Proxy:
-		dwnld := Download(mediaURL)
+		dwnld := fetchMedia(mediaURL)
 		if dwnld.Status != 200 {
 			s.ReturnHTTPError(dwnld.Status)
 			return
@@ -258,7 +265,7 @@ func (s skunkyart) loadOrFetchMedia(filePath, mediaURL string) ([]byte, bool) {
 		}
 	}
 
-	dwnld := Download(mediaURL)
+	dwnld := fetchMedia(mediaURL)
 	if dwnld.Status != 200 || !strings.HasPrefix(dwnld.Headers.Get("Content-Type"), "image") {
 		s.ReturnHTTPError(dwnld.Status)
 		return nil, false

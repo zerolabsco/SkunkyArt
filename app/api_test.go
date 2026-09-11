@@ -1,7 +1,10 @@
 package app
 
 import (
+	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/krazywarez/devianter"
@@ -106,5 +109,39 @@ func TestRandomHonoursNSFW(t *testing.T) {
 
 	if w.Code != 404 || w.Header().Get("Location") != "" {
 		t.Errorf("status %d, Location %q; want 404 and no media", w.Code, w.Header().Get("Location"))
+	}
+}
+
+// TestSendMediaProxiesWithTheTokenInTheQuery is the regression test for
+// /api/random answering 401 with proxying on: the signing token was passed
+// inside the path, so wixmp never saw it as a parameter.
+func TestSendMediaProxiesWithTheTokenInTheQuery(t *testing.T) {
+	proxy, cache := CFG.Proxy, CFG.Cache.Enabled
+	CFG.Proxy, CFG.Cache.Enabled = true, false
+	defer func() { CFG.Proxy, CFG.Cache.Enabled = proxy, cache }()
+
+	var fetched string
+	orig := fetchMedia
+	fetchMedia = func(u string) Downloaded {
+		fetched = u
+		return Downloaded{Status: 200, Body: []byte("png"), Headers: http.Header{"Content-Type": {"image/png"}}}
+	}
+	defer func() { fetchMedia = orig }()
+
+	d := fullviewDeviation()
+	d.Media.Token = []string{"tok.en.sig"}
+
+	w := httptest.NewRecorder()
+	API{main: &skunkyart{Writer: w, Args: url.Values{}}}.sendMedia(d)
+
+	u, err := url.Parse(fetched)
+	if err != nil || u.Host != "images-wixmp-abc.wixmp.com" {
+		t.Fatalf("fetched %q, want a wixmp URL on the deviation's subdomain", fetched)
+	}
+	if strings.Contains(u.Path, "token") || u.Query().Get("token") == "" {
+		t.Errorf("token not passed as a query parameter: path %q query %q", u.Path, u.RawQuery)
+	}
+	if w.Code != 200 || w.Body.String() != "png" {
+		t.Errorf("response %d %q, want the proxied image", w.Code, w.Body.String())
 	}
 }
