@@ -18,7 +18,24 @@ import (
 var (
 	fetchDeviation = devianter.GetDeviation
 	fetchComments  = devianter.GetComments
+	fetchProfile   = func(name string) (devianter.GRuser, devianter.Error, error) {
+		g := devianter.Group{Name: name}
+		return g.Get()
+	}
 )
+
+// groupSearchURL is the DeviantArt group search page for query, paged ten
+// results at a time. page counts from 1; 0 means the first page too.
+func groupSearchURL(query string, page int) string {
+	var url strings.Builder
+	url.WriteString("https://www.deviantart.com/groups/?q=")
+	url.WriteString(query)
+	if page > 1 {
+		url.WriteString("&offset=")
+		url.WriteString(strconv.Itoa(10 * (page - 1)))
+	}
+	return url.String()
+}
 
 // commentsOrLink renders a comment thread only when the request asked for it
 // with ?comments=1, and otherwise a link that does. A thread is a second
@@ -60,7 +77,7 @@ func (s skunkyart) GRUser() {
 	var daError devianter.Error
 	g.Name = s.Query
 	var err error
-	s.Templates.GroupUser.GR, daError, err = g.Get()
+	s.Templates.GroupUser.GR, daError, err = fetchProfile(s.Query)
 	try(err)
 	if daError.RAW != nil {
 		s.Error(daError)
@@ -81,7 +98,7 @@ func (s skunkyart) GRUser() {
 					group.Group = true
 					group.CreationDate = x.ModuleData.GroupAbout.FoundatedAt.UTC().String()
 					group.About.DescriptionFormatted = template.HTML(ParseDescription(s.Host, about.Description)) //nolint:gosec // G203: ParseDescription escapes its input
-				} else if false {
+				} else {
 					group.About.A = x.ModuleData.About
 					var about = &group.About.A
 					group.CreationDate = time.Unix(time.Now().Unix()-x.ModuleData.About.RegDate, 0).UTC().String()
@@ -318,20 +335,10 @@ func (s skunkyart) Search() {
 	case 'r': // scraper, since DeviantArt withholds the guest API for group search
 		var (
 			usernames = make(map[int]string)
-			url       strings.Builder
 			num       int
 		)
 
-		s.Page++
-
-		url.WriteString("https://www.deviantart.com/groups/?q=")
-		url.WriteString(s.Query)
-		if s.Page > 1 {
-			url.WriteString("&offset=")
-			url.WriteString(strconv.Itoa(10 * s.Page))
-		}
-
-		dwnld := Download(url.String())
+		dwnld := Download(groupSearchURL(s.Query, s.Page))
 
 		for z := html.NewTokenizer(strings.NewReader(string(dwnld.Body))); ; {
 			if n, token := z.Next(), z.Token(); n == html.StartTagToken && token.Data == "a" {

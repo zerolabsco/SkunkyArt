@@ -1,9 +1,14 @@
 package app
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
+
+	"github.com/krazywarez/devianter"
 )
 
 // withAvatarCache turns the media cache on over a temporary directory and
@@ -65,5 +70,48 @@ func TestEmojitarFetchesEveryTimeWithCacheOff(t *testing.T) {
 
 	if *calls != 2 {
 		t.Errorf("avatar fetched %d times, want 2 with the cache off", *calls)
+	}
+}
+
+// TestUserAboutRendersProfileDetails is the regression test for the branch
+// upstream had disabled with `else if false`: a person's about tab must show
+// their interests, social links and how long they have been registered. The
+// profile is decoded from JSON shaped like DeviantArt's, since the module
+// slice's element type embeds an unexported struct and cannot be built by
+// name from here.
+func TestUserAboutRendersProfileDetails(t *testing.T) {
+	const profile = `{
+	  "owner": {"isGroup": false, "username": "alice"},
+	  "gruser": {"gruserId": 42, "page": {"modules": [
+	    {"name": "about", "moduleData": {"about": {
+	      "deviantFor": 86400,
+	      "interests": [{"label": "Favourite animal", "value": "skunk"}],
+	      "socialLinks": [{"value": "https://social.example/alice"}]
+	    }}}
+	  ]}}
+	}`
+	orig := fetchProfile
+	fetchProfile = func(string) (devianter.GRuser, devianter.Error, error) {
+		var p devianter.GRuser
+		if err := json.Unmarshal([]byte(profile), &p); err != nil {
+			t.Fatal(err)
+		}
+		return p, devianter.Error{}, nil
+	}
+	t.Cleanup(func() { fetchProfile = orig })
+
+	loadTemplates()
+	rec := httptest.NewRecorder()
+	s := skunkyart{Writer: rec, Host: "http://localhost", BasePath: "/", Type: 'a', Query: "alice", Args: url.Values{}, _pth: "/group_user"}
+	s.GRUser()
+
+	body := rec.Body.String()
+	for _, want := range []string{"Favourite animal: <b>skunk</b>", `href="https://social.example/alice"`, "Registration date"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("about page lacks %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "0001-01-01") {
+		t.Error("registration date is the zero time")
 	}
 }

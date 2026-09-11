@@ -77,3 +77,17 @@ func TestNavBaseKeepsTheCommentsParameter(t *testing.T) {
 		t.Errorf("next link drops comments=1:\n%s", out)
 	}
 }
+
+func TestGroupSearchURLPagesByTen(t *testing.T) {
+	cases := map[int]string{
+		0: "https://www.deviantart.com/groups/?q=cats",
+		1: "https://www.deviantart.com/groups/?q=cats",
+		2: "https://www.deviantart.com/groups/?q=cats&offset=10",
+		3: "https://www.deviantart.com/groups/?q=cats&offset=20",
+	}
+	for page, want := range cases {
+		if got := groupSearchURL("cats", page); got != want {
+			t.Errorf("page %d: %s, want %s", page, got, want)
+		}
+	}
+}
