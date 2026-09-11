@@ -251,7 +251,7 @@ func (s skunkyart) DD() {
 
 		strips.WriteString(s.DeviationList(x.Deviations, false))
 	}
-	s.Templates.DDStrips = template.HTML(strips.String()) //nolint:gosec // G203: escaped above
+	s.Templates.DDStrips = template.HTML(strips.String())                                    //nolint:gosec // G203: escaped above
 	s.Templates.SomeList = template.HTML(s.DeviationList(dd.Deviations, true, DeviationList{ //nolint:gosec // G203: DeviationList escapes its input
 		Pages: 0,
 		More:  dd.HasMore,
