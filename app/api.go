@@ -37,6 +37,7 @@ func (a API) Info() {
 
 // Error responds with a JSON error body and the given HTTP status.
 func (a API) Error(description string, status int) {
+	a.main.Writer.Header().Del("Cache-Control")
 	a.main.Writer.WriteHeader(status)
 	var response strings.Builder
 	response.WriteString(`{"error":"`)

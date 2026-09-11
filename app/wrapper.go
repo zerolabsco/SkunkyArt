@@ -1,6 +1,7 @@
 package app
 
 import (
+	"crypto/sha1" //nolint:gosec // G505: SHA-1 is a cache-key hash here, not a security primitive
 	"html/template"
 	"regexp"
 	"strconv"
@@ -190,6 +191,7 @@ func (s skunkyart) Deviation(author, postname string) {
 	}
 
 	if post.Post.Deviation.NSFW && !CFG.Nsfw {
+		s.Writer.Header().Del("Cache-Control")
 		s.Writer.WriteHeader(403)
 		wr(s.Writer, `<html><link rel="stylesheet" href="`+
 			URLBuilder(s.Host, "stylesheet")+
@@ -343,17 +345,34 @@ func (s skunkyart) Search() {
 	s.ExecuteTemplate("search.htm", "html", &s)
 }
 
+// fetchAvatar is devianter.AEmedia behind a variable so tests can count calls.
+var fetchAvatar = devianter.AEmedia
+
 // Emojitar proxies a user's avatar or emoji image, selected by the request's
-// type argument.
+// type argument. With the media cache on, the image is served from it after
+// the first fetch: avatars are on every comment and listing, and DeviantArt
+// answers each fetch with up to three requests.
 func (s skunkyart) Emojitar(name string) {
 	if name == "" || (s.Type != 'a' && s.Type != 'e') {
 		s.ReturnHTTPError(400)
 		return
 	}
 
-	ae, e := devianter.AEmedia(name, s.Type)
+	key := sha1.Sum([]byte("emojitar:" + string(s.Type) + ":" + strings.ToLower(name))) //nolint:gosec // G401: cache key, not a security primitive
+	if CFG.Cache.Enabled {
+		if body := cachedBody(key); body != nil {
+			_, _ = s.Writer.Write(body)
+			return
+		}
+	}
+
+	ae, e := fetchAvatar(name, s.Type)
 	if e != nil {
 		s.ReturnHTTPError(404)
+		return
+	}
+	if CFG.Cache.Enabled {
+		storeBody(key, []byte(ae))
 	}
 	wr(s.Writer, ae)
 }

@@ -199,6 +199,7 @@ func URLBuilder(host string, strs ...string) string {
 // first line is shown: a WAF block arrives as a whole HTML page, which is
 // neither readable nor safe to echo.
 func (s skunkyart) Error(dAerr devianter.Error) {
+	s.Writer.Header().Del("Cache-Control")
 	s.Writer.WriteHeader(502)
 
 	reason, _, _ := strings.Cut(dAerr.Error, "\n")
@@ -220,6 +221,7 @@ func (s skunkyart) ReturnHTTPError(status int) {
 	if status < 100 || status > 599 {
 		status = http.StatusBadGateway
 	}
+	s.Writer.Header().Del("Cache-Control")
 	s.Writer.WriteHeader(status)
 
 	var msg strings.Builder

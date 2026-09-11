@@ -205,7 +205,7 @@ func (s skunkyart) DownloadAndSendMedia(subdomain, path string) {
 	switch {
 	case CFG.Cache.Enabled:
 		key := sha1.Sum([]byte(subdomain + path)) //nolint:gosec // G401: cache-key hash, not a security primitive
-		filePath := CFG.Cache.Path + "/" + hex.EncodeToString(key[:])
+		filePath := cacheFilePath(key)
 
 		if CFG.Cache.MemCache {
 			if cached := memGet(key); cached != nil {
@@ -232,6 +232,7 @@ func (s skunkyart) DownloadAndSendMedia(subdomain, path string) {
 		}
 		response = dwnld.Body
 	default:
+		s.Writer.Header().Del("Cache-Control")
 		s.Writer.WriteHeader(403)
 		response = []byte("Sorry, butt proxy on this instance are disabled.")
 	}
@@ -313,5 +314,37 @@ func InitCacheSystem() {
 		}
 
 		time.Sleep(time.Second * time.Duration(c.UpdateInterval))
+	}
+}
+
+// cacheFilePath is where the body cached under key lives on disk.
+func cacheFilePath(key [20]byte) string {
+	return CFG.Cache.Path + "/" + hex.EncodeToString(key[:])
+}
+
+// cachedBody returns the body stored under key, from memory when memcache is
+// on and otherwise from disk, or nil when there is none.
+func cachedBody(key [20]byte) []byte {
+	if CFG.Cache.MemCache {
+		if body := memGet(key); body != nil {
+			return body
+		}
+	}
+	// The path is a hash of the key, not user input.
+	body, err := os.ReadFile(cacheFilePath(key)) //nolint:gosec // G304
+	if err != nil || len(body) == 0 {
+		return nil
+	}
+	if CFG.Cache.MemCache {
+		memPut(key, body)
+	}
+	return body
+}
+
+// storeBody writes body under key to disk and, when memcache is on, memory.
+func storeBody(key [20]byte, body []byte) {
+	try(os.WriteFile(cacheFilePath(key), body, 0600))
+	if CFG.Cache.MemCache {
+		memPut(key, body)
 	}
 }
