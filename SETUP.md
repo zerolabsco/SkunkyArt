@@ -35,6 +35,11 @@ below apply. A file named with `-c` must exist.
     recently used entries are dropped past this.
   * `ttl` — How long a response is reused, in the time units below. Default
     `5i`.
+  * `stale` — How long past `ttl` a response is kept to be served when
+    DeviantArt fails or blocks the instance, so a short ban does not take
+    the daily deviations, popular searches and feeds down. Default `1h`;
+    `0i` keeps nothing past `ttl`. After a block the instance also leaves
+    DeviantArt alone for a minute instead of retrying every request.
 * `rate-limit` — Per-client budget for page, feed and API requests, so one
   crawler cannot spend the whole upstream budget. Media, avatars and static
   files are not counted. Over budget answers 429 with `Retry-After`.

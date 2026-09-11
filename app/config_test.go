@@ -32,8 +32,8 @@ func TestParseLifetimeRejectsBadInput(t *testing.T) {
 }
 
 func TestAPICacheDefaults(t *testing.T) {
-	if !CFG.APICache.Enabled || CFG.APICache.MaxSize != 64 || CFG.APICache.TTL != "5i" {
-		t.Errorf("defaults are %+v, want enabled, 64 MB, 5i", CFG.APICache)
+	if !CFG.APICache.Enabled || CFG.APICache.MaxSize != 64 || CFG.APICache.TTL != "5i" || CFG.APICache.Stale != "1h" {
+		t.Errorf("defaults are %+v, want enabled, 64 MB, 5i, stale 1h", CFG.APICache)
 	}
 }
 

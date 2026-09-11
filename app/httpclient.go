@@ -100,8 +100,8 @@ func chain(base http.RoundTripper) http.RoundTripper {
 func logCacheStatsForever(c *apiCache) {
 	for {
 		time.Sleep(time.Hour)
-		hits, misses, entries, held := c.stats()
-		println("api cache:", hits, "hits,", misses, "misses,", entries, "entries,", held>>20, "MB held")
+		hits, misses, stale, entries, held := c.stats()
+		println("api cache:", hits, "hits,", misses, "misses,", stale, "served stale,", entries, "entries,", held>>20, "MB held")
 	}
 }
 
@@ -111,7 +111,7 @@ func logCacheStatsForever(c *apiCache) {
 func InstallDAThrottle() {
 	baseTransport = tunedTransport()
 	if CFG.APICache.Enabled {
-		daCache = newAPICache(CFG.APICache.MaxSize<<20, apiCacheTTL)
+		daCache = newAPICache(CFG.APICache.MaxSize<<20, apiCacheTTL, apiCacheStale)
 		go logCacheStatsForever(daCache)
 	}
 	http.DefaultTransport = chain(baseTransport)
