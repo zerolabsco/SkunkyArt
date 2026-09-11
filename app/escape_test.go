@@ -19,6 +19,7 @@ func loadTemplates() {
 	loadTemplatesOnce.Do(func() {
 		static.StaticPath = "../static"
 		static.CopyTemplatesToMemory()
+		LoadLanguages()
 	})
 }
 

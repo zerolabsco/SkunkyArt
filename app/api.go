@@ -3,7 +3,6 @@ package app
 import (
 	"encoding/json"
 	"math/rand"
-	"strconv"
 	"strings"
 
 	"github.com/krazywarez/devianter"
@@ -64,39 +63,42 @@ func (a API) sendMedia(d *devianter.Deviation) {
 	}
 }
 
-// Random responds with a random artwork's media, retrying a bounded number of
-// times when a search comes back empty or NSFW-filtered.
+// fetchDailyDeviations is devianter.GetDailyDeviations behind a variable so
+// tests can script it.
+var fetchDailyDeviations = devianter.GetDailyDeviations
+
+// Random responds with a random artwork's media, picked from the current daily
+// deviations. That page is one upstream call the API cache answers for its
+// TTL, where the previous random searches were up to three uncacheable calls
+// per hit and a cheap way for a bot to burn the instance's upstream budget.
 //
 // TODO: add filters.
 func (a API) Random() {
-	// Bounded retries: the loop used to be unbounded, and the DeviantArt-error
-	// path never incremented attempt, so a single request could spin forever
-	// hammering the API (and get this instance's egress IP banned).
-	const maxAttempts = 3
-
-	// math/rand is deliberate: this picks a random artwork to show, which is not
-	// a security decision and does not need a cryptographic source.
-	for range maxAttempts {
-		// strconv.Itoa, not string(): string(65) is "A", not "65".
-		s, daErr, err := devianter.PerformSearch(strconv.Itoa(rand.Intn(999)), rand.Intn(30), 'a') //nolint:gosec // G404
-		try(err)
-		if daErr.RAW != nil {
-			continue
-		}
-
-		// rand.Intn panics on 0, so an empty result set must be skipped.
-		if len(s.Results) == 0 {
-			continue
-		}
-
-		deviation := &s.Results[rand.Intn(len(s.Results))] //nolint:gosec // G404: see above
-		if deviation.NSFW && !CFG.Nsfw {
-			continue
-		}
-
-		a.sendMedia(deviation)
+	dd, daErr := fetchDailyDeviations(0)
+	if daErr.RAW != nil {
+		a.Error("deviantart returned an error", 502)
 		return
 	}
 
-	a.Error("Sorry, butt NSFW on this are disabled, and the instance failed to find a random art without NSFW", 500)
+	var pool []*devianter.Deviation
+	for i := range dd.Deviations {
+		if d := &dd.Deviations[i]; VisibleDeviation(d) {
+			pool = append(pool, d)
+		}
+	}
+	for s := range dd.Strips {
+		for i := range dd.Strips[s].Deviations {
+			if d := &dd.Strips[s].Deviations[i]; VisibleDeviation(d) {
+				pool = append(pool, d)
+			}
+		}
+	}
+	if len(pool) == 0 {
+		a.Error("no daily deviation this instance can show", 404)
+		return
+	}
+
+	// math/rand is deliberate: this picks a random artwork to show, which is not
+	// a security decision and does not need a cryptographic source.
+	a.sendMedia(pool[rand.Intn(len(pool))]) //nolint:gosec // G404
 }

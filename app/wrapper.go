@@ -3,6 +3,8 @@ package app
 import (
 	"crypto/sha1" //nolint:gosec // G505: SHA-1 is a cache-key hash here, not a security primitive
 	"html/template"
+	"maps"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -11,6 +13,40 @@ import (
 	"github.com/krazywarez/devianter"
 	"golang.org/x/net/html"
 )
+
+// devianter calls behind variables so tests can count and script them.
+var (
+	fetchDeviation = devianter.GetDeviation
+	fetchComments  = devianter.GetComments
+)
+
+// commentsOrLink renders a comment thread only when the request asked for it
+// with ?comments=1, and otherwise a link that does. A thread is a second
+// upstream call on every post and profile view, and most viewers never open
+// it. total is shown in the link when it is known (0 or more).
+func (s skunkyart) commentsOrLink(id, cursor string, kind, total int) template.HTML {
+	if s.Args.Get("comments") != "" {
+		return template.HTML(s.ParseComments(fetchComments(id, cursor, s.Page, kind))) //nolint:gosec // G203: ParseComments escapes its input
+	}
+
+	args := url.Values{}
+	maps.Copy(args, s.Args)
+	args.Del("p")
+	args.Set("comments", "1")
+
+	var link strings.Builder
+	link.WriteString(`<p><a href="`)
+	link.WriteString(esc(s._pth + "?" + args.Encode()))
+	link.WriteString(`">`)
+	link.WriteString(esc(T(s.Lang, "deviation.comments")))
+	if total >= 0 {
+		link.WriteString(" (")
+		link.WriteString(strconv.Itoa(total))
+		link.WriteString(")")
+	}
+	link.WriteString("</a></p>")
+	return template.HTML(link.String()) //nolint:gosec // G203: escaped above
+}
 
 // GRUser renders a group or user page: the about tab, the gallery, or favourites,
 // selected by the request's type argument.
@@ -70,7 +106,7 @@ func (s skunkyart) GRUser() {
 						group.About.Interests += template.HTML(interest.String()) //nolint:gosec // G203: escaped above
 					}
 				}
-				group.About.Comments = template.HTML(s.ParseComments(devianter.GetComments(strconv.Itoa(group.GR.Gruser.ID), "", s.Page, 4))) //nolint:gosec // G203: ParseComments escapes its input
+				group.About.Comments = s.commentsOrLink(strconv.Itoa(group.GR.Gruser.ID), "", 4, -1)
 
 			case "cover_deviation":
 				group.About.BGMeta = x.ModuleData.CoverDeviation.Deviation
@@ -184,7 +220,7 @@ func (s skunkyart) Deviation(author, postname string) {
 	post := &s.Templates.Deviation
 
 	id := idSearch[len(idSearch)-1]
-	post.Post, err = devianter.GetDeviation(id, author)
+	post.Post, err = fetchDeviation(id, author)
 	if err.RAW != nil {
 		s.Error(err)
 		return
@@ -227,7 +263,7 @@ func (s skunkyart) Deviation(author, postname string) {
 		post.Tags += template.HTML(tag.String()) //nolint:gosec // G203: escaped above
 	}
 
-	post.Comments = template.HTML(s.ParseComments(devianter.GetComments(id, post.Post.Comments.Cursor, s.Page, 1))) //nolint:gosec // G203: ParseComments escapes its input
+	post.Comments = s.commentsOrLink(id, post.Post.Comments.Cursor, 1, post.Post.Comments.Total)
 	post.StringTime = post.Post.Deviation.PublishedTime.UTC().String()
 	post.Post.IMG = ParseMedia(s.Host, post.Post.Deviation.Media)
 

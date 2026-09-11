@@ -57,3 +57,54 @@ func TestSendMediaIgnoresEmptyMedia(t *testing.T) {
 		t.Errorf("Location %q set for a media-less deviation, want none", loc)
 	}
 }
+
+// withDailyDeviations scripts the daily deviations fetch with the given
+// entries and counts the calls.
+func withDailyDeviations(t *testing.T, devs ...devianter.Deviation) *int {
+	t.Helper()
+	orig := fetchDailyDeviations
+	calls := 0
+	fetchDailyDeviations = func(int) (devianter.DailyDeviations, devianter.Error) {
+		calls++
+		return devianter.DailyDeviations{Deviations: devs}, devianter.Error{}
+	}
+	t.Cleanup(func() { fetchDailyDeviations = orig })
+	return &calls
+}
+
+// TestRandomPicksFromTheDailyDeviations pins the new source: one fetch of the
+// daily page, and the pick is served as media.
+func TestRandomPicksFromTheDailyDeviations(t *testing.T) {
+	proxy, nsfw := CFG.Proxy, CFG.Nsfw
+	CFG.Proxy, CFG.Nsfw = false, true
+	defer func() { CFG.Proxy, CFG.Nsfw = proxy, nsfw }()
+	calls := withDailyDeviations(t, *fullviewDeviation())
+
+	w := httptest.NewRecorder()
+	API{main: &skunkyart{Writer: w}}.Random()
+
+	if *calls != 1 {
+		t.Errorf("daily deviations fetched %d times, want 1", *calls)
+	}
+	if w.Code != 302 || w.Header().Get("Location") == "" {
+		t.Errorf("status %d, Location %q; want a 302 to the pick's media", w.Code, w.Header().Get("Location"))
+	}
+}
+
+// TestRandomHonoursNSFW pins that a pick is drawn only from what the instance
+// may show: with nsfw off and only mature entries there is nothing to serve.
+func TestRandomHonoursNSFW(t *testing.T) {
+	proxy, nsfw := CFG.Proxy, CFG.Nsfw
+	CFG.Proxy, CFG.Nsfw = false, false
+	defer func() { CFG.Proxy, CFG.Nsfw = proxy, nsfw }()
+	mature := *fullviewDeviation()
+	mature.NSFW = true
+	withDailyDeviations(t, mature)
+
+	w := httptest.NewRecorder()
+	API{main: &skunkyart{Writer: w}}.Random()
+
+	if w.Code != 404 || w.Header().Get("Location") != "" {
+		t.Errorf("status %d, Location %q; want 404 and no media", w.Code, w.Header().Get("Location"))
+	}
+}
