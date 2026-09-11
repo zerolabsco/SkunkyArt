@@ -11,7 +11,7 @@ Time units:
 # Config
 * `listen` — IP and port to listen on in the following form: ip:port
 * `uri` — Instance URI. Example: `"uri":"/art/"` -> https://skunky.ebloid.ru/art/
-* `cache` — Caching system for proxied media, avatars and emotes; default is off.
+* `cache` — Caching system for proxied media, avatars and emotes. On by default: `path` `cache`, `lifetime` `1w`, `max-size` `200`, `memcache` off. A proxying instance with no cache re-fetches every image from wixmp on every view, which is the pattern that gets an egress IP blocked.
   * `enabled` — Caching system state, requires boolean value
   * `path` — Path to cache directory. It must be writable by the user SkunkyArt
     runs as, and SkunkyArt refuses to start if it is not. The container image
