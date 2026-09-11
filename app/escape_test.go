@@ -20,6 +20,7 @@ func loadTemplates() {
 		static.StaticPath = "../static"
 		static.CopyTemplatesToMemory()
 		LoadLanguages()
+		ParseTemplates()
 	})
 }
 
@@ -147,5 +148,17 @@ func TestErrorPageShowsOneEscapedLine(t *testing.T) {
 	}
 	if strings.Contains(body, "<!DOCTYPE html>") || !strings.Contains(body, "&lt;!DOCTYPE html&gt;") {
 		t.Errorf("upstream error not escaped:\n%s", body)
+	}
+}
+
+// TestExecuteTemplateUsesTheRequestLanguage pins that the per-language parsed
+// sets answer with the right catalogue.
+func TestExecuteTemplateUsesTheRequestLanguage(t *testing.T) {
+	loadTemplates()
+	rec := httptest.NewRecorder()
+	s := skunkyart{Writer: rec, Host: "http://localhost", BasePath: "/", Lang: "es"}
+	s.ExecuteTemplate("about.htm", "html", &s)
+	if !strings.Contains(rec.Body.String(), "Ajustes de la instancia") {
+		t.Errorf("Spanish request rendered without the Spanish catalogue:\n%s", rec.Body.String())
 	}
 }

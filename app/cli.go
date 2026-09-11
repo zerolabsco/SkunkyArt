@@ -26,7 +26,7 @@ Copyright lost+skunk and zerolabs, X11. https://github.com/krazywarez/skunky-art
 	for n, x := range a {
 		switch x {
 		case "-c", "--config":
-			if len(a) >= 2 {
+			if n+1 < len(a) {
 				CFG.cfg = a[n+1]
 			} else {
 				exit("Not enought arguments", 1)
