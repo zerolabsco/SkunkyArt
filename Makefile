@@ -3,7 +3,7 @@
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//')
 LDFLAGS  = -s -w -X main.version=$(VERSION)
-GOFLAGS  = -trimpath
+GOFLAGS  = -trimpath -buildvcs=false
 LINT     = github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
 
 # os/arch pairs packaged by `make dist`.
