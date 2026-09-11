@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/krazywarez/devianter"
 	"golang.org/x/net/html"
@@ -102,6 +103,7 @@ func (s skunkyart) DeviationList(devs []devianter.Deviation, allowAtom bool, con
 	}
 
 	var list, listContent strings.Builder
+	var newest time.Time // the latest entry, for the feed's own <updated>
 
 	for i, l := 0, len(devs); i < l; i++ {
 		data := &devs[i]
@@ -115,21 +117,30 @@ func (s skunkyart) DeviationList(devs []devianter.Deviation, allowAtom bool, con
 		if preview, fullview := esc(ParseMedia(s.Host, data.Media, 320)), esc(ParseMedia(s.Host, data.Media)); true {
 			if allowAtom && s.Atom {
 				s.Writer.Header().Add("Content-Type", "application/atom+xml")
-				id := strconv.Itoa(data.ID)
+				// The entry id is the post's URL here: Atom wants an IRI, and a
+				// bare number is not one. Timestamps are RFC 3339, the only form
+				// the format allows.
+				entryURL := esc(URLBuilder(s.Host, "post", data.Author.Username, "atom-"+strconv.Itoa(data.ID)))
+				published := data.PublishedTime.UTC()
+				if published.After(newest) {
+					newest = published
+				}
 				listContent.WriteString(`<entry><author><name>`)
 				listContent.WriteString(author)
 				listContent.WriteString(`</name></author><title>`)
 				listContent.WriteString(title)
 				listContent.WriteString(`</title><link rel="alternate" type="text/html" href="`)
-				listContent.WriteString(esc(URLBuilder(s.Host, "post", data.Author.Username, "atom-"+id)))
+				listContent.WriteString(entryURL)
 				listContent.WriteString(`"/><id>`)
-				listContent.WriteString(id)
+				listContent.WriteString(entryURL)
 				listContent.WriteString(`</id><published>`)
-				listContent.WriteString(data.PublishedTime.UTC().Format("Mon, 02 Jan 2006 15:04:05 -0700"))
-				listContent.WriteString(`</published>`)
+				listContent.WriteString(published.Format(time.RFC3339))
+				listContent.WriteString(`</published><updated>`)
+				listContent.WriteString(published.Format(time.RFC3339))
+				listContent.WriteString(`</updated>`)
 				listContent.WriteString(`<media:group><media:title>`)
 				listContent.WriteString(title)
-				listContent.WriteString(`</media:title><media:thumbinal url="`)
+				listContent.WriteString(`</media:title><media:thumbnail url="`)
 				listContent.WriteString(preview)
 				listContent.WriteString(`"/></media:group><content type="xhtml"><div xmlns="http://www.w3.org/1999/xhtml"><a href="`)
 				listContent.WriteString(postURL)
@@ -184,6 +195,20 @@ func (s skunkyart) DeviationList(devs []devianter.Deviation, allowAtom bool, con
 			list.WriteString("SkunkyArt")
 		}
 		list.WriteString(`</title>`)
+
+		// Atom requires a feed id and updated time; readers reject a feed
+		// without them. The id is the feed's own URL on this instance.
+		feedURL := esc(s.Host + s._pth + "?" + s.Args.Encode())
+		if newest.IsZero() {
+			newest = time.Now().UTC()
+		}
+		list.WriteString(`<id>`)
+		list.WriteString(feedURL)
+		list.WriteString(`</id><updated>`)
+		list.WriteString(newest.Format(time.RFC3339))
+		list.WriteString(`</updated><link rel="self" type="application/atom+xml" href="`)
+		list.WriteString(feedURL)
+		list.WriteString(`"/>`)
 
 		list.WriteString(`<link rel="alternate" href="`)
 		list.WriteString(esc(s.Host))
