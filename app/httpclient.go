@@ -18,7 +18,9 @@ import (
 //
 // http.ProxyFromEnvironment is preserved, so HTTPS_PROXY (VPN egress) still applies.
 
-// Tunables (kept in source; safe defaults). Lower is gentler on the DA IP.
+// Tunables, set from the upstream config block by ExecuteConfig; these are
+// the defaults for a config that omits it. Slower is gentler on the egress
+// address, which DeviantArt bans when it asks too often.
 var (
 	daMinInterval   = 400 * time.Millisecond // minimum gap between DA request starts
 	daMaxConcurrent = 2                      // max simultaneous in-flight DA requests

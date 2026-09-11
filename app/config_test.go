@@ -1,6 +1,7 @@
 package app
 
 import (
+	"os"
 	"testing"
 	"time"
 )
@@ -78,5 +79,31 @@ func TestExecuteConfigExitsOnAMissingExplicitFile(t *testing.T) {
 
 	if len(*msgs) == 0 {
 		t.Error("a missing file named with -c started the instance, want an exit")
+	}
+}
+
+func TestUpstreamDefaults(t *testing.T) {
+	if CFG.Upstream.MinIntervalMS != 400 || CFG.Upstream.MaxConcurrent != 2 {
+		t.Errorf("defaults are %+v, want 400 ms and 2 in flight", CFG.Upstream)
+	}
+}
+
+// TestUpstreamConfigSetsTheThrottle pins that the file's values reach the
+// throttle: the tunables used to be source constants.
+func TestUpstreamConfigSetsTheThrottle(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.json"
+	if err := os.WriteFile(path, []byte(`{"upstream": {"min-interval-ms": 1500, "max-concurrent": 1}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	withScratchConfig(t, path, true)
+	interval, concurrent := daMinInterval, daMaxConcurrent
+	t.Cleanup(func() { daMinInterval, daMaxConcurrent = interval, concurrent })
+	captureExit(t)
+
+	ExecuteConfig()
+
+	if daMinInterval != 1500*time.Millisecond || daMaxConcurrent != 1 {
+		t.Errorf("throttle is %v / %d, want 1.5s / 1 from the file", daMinInterval, daMaxConcurrent)
 	}
 }
