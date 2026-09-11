@@ -187,25 +187,15 @@ input:focus {
 
 /* SCREEN OPTIMISATIONS */
 @media (orientation: portrait) {
-    * {
-        font-size: 120%
-    }
-    
-    ul {
-        font-size: 80%
-    }
-    
     header {
         margin-left: 3%;
         text-align: center;
         display: inline-block;
         clear: both;
-        font-size: 200%;
     }
 
     form {
-        font-size: 60%;
-        border: solid var(--edge) 5px;
+        border: solid var(--edge) 1px;
     }
     
     .content {
@@ -215,7 +205,7 @@ input:focus {
     }
     .block {
         margin-top: 10%;
-        max-width: 200%;
+        max-width: 100%;
     }
     .folder-item {
         width: 25%
@@ -231,7 +221,6 @@ input:focus {
         width: 100%
     }
     .msg {
-        font-size: 60%;
         max-width: 80%
     }
     .block img, .plates .user-plate img {
@@ -259,5 +248,84 @@ input:focus {
 @media (min-width: 788px) and (max-width: 884px) {
     .block {
         max-width: 35%;
+    }
+}
+/* POST */
+figure h1 {
+    font-size: 1.2em;
+    margin: 0.3em 0;
+}
+
+/* INDEX */
+.index {
+    display: flex;
+    max-width: fit-content;
+    position: absolute;
+    top: 50%;
+    right: 50%;
+    transform: translate(50%, -50%);
+}
+.index div {
+    transform: translate(0, 50%);
+    margin-left: 4%;
+    flex-basis: 100%;
+    height: 30%;
+    display: block;
+    max-width: fit-content;
+}
+.index div h1, .index form {
+    margin: 0;
+}
+.index div form {
+    font-size: 100%;
+    max-width: 100%;
+}
+.index div form input {
+    width: 100%;
+}
+.index img {
+    width: 30%;
+    height: 30%;
+}
+.index .source {
+    margin-top: 5%;
+    font-size: 200%;
+    text-align: center;
+}
+@media (orientation: portrait) {
+    .index {
+        display: block;
+        position: static;
+        transform: none;
+        width: 100%;
+        max-width: none;
+        padding: 1em;
+        box-sizing: border-box;
+    }
+    .index img {
+        width: 60%;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+    }
+    .index form {
+        width: 100%;
+    }
+    .index div {
+        transform: none;
+        margin: 0;
+        width: 100%;
+        max-width: none;
+    }
+    .index div h1 {
+        text-align: center;
+    }
+}
+@media (max-width: 1155px) and (orientation: landscape) {
+    .index img {
+        width: 50%;
+    }
+    .index div {
+        transform: none;
     }
 }

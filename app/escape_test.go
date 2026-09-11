@@ -109,8 +109,8 @@ func TestParseCommentsEscapesUsernames(t *testing.T) {
 	if strings.Contains(out, "<b id=injected>") {
 		t.Fatalf("username rendered as markup:\n%s", out)
 	}
-	if n := strings.Count(out, "&lt;b id=injected&gt;"); n != 4 {
-		t.Errorf("escaped username appears %d times, want 4 (avatar, link, author, reply target):\n%s", n, out)
+	if n := strings.Count(out, "&lt;b id=injected&gt;"); n != 5 {
+		t.Errorf("escaped username appears %d times, want 5 (avatar src and alt, link, author, reply target):\n%s", n, out)
 	}
 }
 
@@ -160,5 +160,30 @@ func TestExecuteTemplateUsesTheRequestLanguage(t *testing.T) {
 	s.ExecuteTemplate("about.htm", "html", &s)
 	if !strings.Contains(rec.Body.String(), "Ajustes de la instancia") {
 		t.Errorf("Spanish request rendered without the Spanish catalogue:\n%s", rec.Body.String())
+	}
+}
+
+// TestListingImagesCarryAltText covers the accessibility fix: every image the
+// Go builders emit names what it shows.
+func TestListingImagesCarryAltText(t *testing.T) {
+	nsfw := CFG.Nsfw
+	CFG.Nsfw = true
+	defer func() { CFG.Nsfw = nsfw }()
+
+	d := *fullviewDeviation()
+	d.Title = "T"
+	d.Author.Username = "alice"
+	if out := (skunkyart{Host: "http://localhost"}).DeviationList([]devianter.Deviation{d}, false); !strings.Contains(out, `alt="alice - T"`) {
+		t.Errorf("listing image has no alt text:\n%s", out)
+	}
+	if out := BuildUserPlate("http://localhost", "bob"); !strings.Contains(out, `alt="bob"`) {
+		t.Errorf("user plate image has no alt text:\n%s", out)
+	}
+	var c devianter.Comments
+	var th devianter.Thread
+	th.User.Username = "carol"
+	c.Thread = []devianter.Thread{th}
+	if out := (skunkyart{Host: "http://localhost"}).ParseComments(c, devianter.Error{}); !strings.Contains(out, `alt="carol"`) {
+		t.Errorf("comment avatar has no alt text:\n%s", out)
 	}
 }
