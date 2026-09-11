@@ -184,6 +184,8 @@ func (s skunkyart) GRUser() {
 								folders.WriteString(esc(ParseMedia(s.Host, x.Thumb.Media)))
 								folders.WriteString(`" title="`)
 								folders.WriteString(esc(x.Thumb.Title))
+								folders.WriteString(`" alt="`)
+								folders.WriteString(esc(x.Thumb.Title))
 								folders.WriteString(`"></a>`)
 							} else {
 								folders.WriteString(`<h1>[ <span class="nsfw">NSFW</span> ]</h1>`)

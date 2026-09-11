@@ -4,72 +4,10 @@
         <title>SkunkyArt</title>
         <link rel="stylesheet" href="{{.BasePath}}stylesheet"/>
         <link rel="icon" type="image/x-icon" href="{{.BasePath}}favicon.ico">
-        <meta name="viewport" content="width=device-width, height=device-height, initial-scale=0.4"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
-        <style>
-            main {
-                display: flex;
-                max-width: fit-content;
-                position: absolute;
-                top: 50%;
-                right: 50%;
-                transform: translate(50%, -50%);
-            }
-            div {
-                transform: translate(0, 50%);
-                margin-left: 4%;
-                flex-basis: 100%;
-                height: 30%;
-                display: block;
-                max-width: fit-content;
-            }     
-            div h1, form {
-                margin: 0;
-            }
-            div form {
-                font-size: 100%;
-                max-width: 100%
-            }
-            div form input {
-                width: 100%
-            }
-            img {
-                width: 30%;
-                height: 30%;
-            }
-
-            @media (orientation: portrait) {
-                main {
-                    display: block;
-                    width: 200%;
-                }
-                img {
-                    width: 100%;
-                    height: 100%;
-                }
-                form {
-                    width: 200%;
-                }
-                div {
-                    margin: -25%;
-                    margin-top: auto;
-                    width: 200%;
-                }
-                div h1 {
-                    text-align: center;
-                }
-            }
-            @media (max-width: 1155px) and (orientation: landscape) {
-                img {
-                    width: 50%;
-                }
-                div {
-                    transform: none;
-                }
-            }
-        </style>
     </head>
-    <main>
+    <main class="index">
         <img src="{{.BasePath}}favicon.ico" title="{{T "index.logo"}}" alt="SkunkyArt logo" draggable="false">
         <div>
             <h1><a href="{{.BasePath}}dd">{{T "nav.daily"}}</a> | <a href="{{.BasePath}}about">{{T "nav.about"}}</a></h1>
@@ -82,7 +20,7 @@
                 </select>
                 <button type="submit">{{T "search.submit"}}</button>
             </form>
-            <h1 style="margin-top: 5%; font-size: 200%; text-align: center;">
+            <h1 class="source">
                 <a href="https://github.com/krazywarez/skunky-art" target="_blank" title="{{T "index.source"}}">SkunkyArt</a>
             </h1>
         </div>

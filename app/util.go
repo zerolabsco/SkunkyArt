@@ -365,6 +365,8 @@ func BuildUserPlate(host, name string) string {
 	var htm strings.Builder
 	htm.WriteString(`<div class="user-plate"><img src="`)
 	htm.WriteString(esc(URLBuilder(host, "media", "emojitar", name, "?type=a")))
+	htm.WriteString(`" alt="`)
+	htm.WriteString(esc(name))
 	htm.WriteString(`"><a href="`)
 	htm.WriteString(esc(URLBuilder(host, "group_user", "?type=about&q=", name)))
 	htm.WriteString(`">`)

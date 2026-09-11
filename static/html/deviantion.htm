@@ -5,12 +5,12 @@
         {{template "header" . }}
         <figure>
             <img src="{{.BasePath}}media/emojitar/{{.Templates.Deviation.Post.Deviation.Author.Username}}?type=a" width="30px" alt="{{.Templates.Deviation.Post.Deviation.Author.Username}} avatar">
-            <span><strong><a href="{{.BasePath}}group_user?type=about&q={{.Templates.Deviation.Post.Deviation.Author.Username}}">{{.Templates.Deviation.Post.Deviation.Author.Username}}</a></strong> — {{if (.Templates.Deviation.Post.Deviation.DD)}}
+            <h1><strong><a href="{{.BasePath}}group_user?type=about&q={{.Templates.Deviation.Post.Deviation.Author.Username}}">{{.Templates.Deviation.Post.Deviation.Author.Username}}</a></strong> — {{if (.Templates.Deviation.Post.Deviation.DD)}}
                 <span class="dd" title="{{T "deviation.daily"}}"><b>{{.Templates.Deviation.Post.Deviation.Title}}</b></span>
                 {{else}}{{.Templates.Deviation.Post.Deviation.Title}}{{end}}
                  {{if (ne .Templates.Deviation.Post.Deviation.License "none")}}<mark title="{{T "deviation.license"}}">{{.Templates.Deviation.Post.Deviation.License}}</mark>{{end}} {{if (.Templates.Deviation.Post.Deviation.AI)}}[🤖]{{end}} 
                  {{if (.Templates.Deviation.Post.Deviation.NSFW)}}[<span class="nsfw">{{T "deviation.nsfw"}}</span>]{{end}}
-            </span>
+            </h1>
             <br>
             {{if (ne .Templates.Deviation.Post.IMG "")}}
             <a href="{{.Templates.Deviation.Post.IMG}}" title="{{T "deviation.open"}}"><img src="{{.Templates.Deviation.Post.IMG}}" width="50%" alt="{{.Templates.Deviation.Post.Deviation.Title}}"></a>
