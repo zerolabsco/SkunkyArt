@@ -54,9 +54,15 @@ tag) in a directory with a ~config.json~, then
 [[file:services/][services/]]. put a reverse proxy with tls in front; SETUP.md has the nginx
 stanza.
 
+* where things live
+the repository, issues and merge requests are on gitbay
+(https://gitbay.org/krz/skunky-art). github.com/krazywarez/skunky-art is a
+push mirror that exists to build the container image; do not open issues
+there.
+
 * docker
 multi-arch images (~linux/amd64~, ~linux/arm64~) publish to ghcr on every release
-tag:
+tag, built by the github mirror's workflow:
 
 #+begin_src sh
 docker pull ghcr.io/krazywarez/skunky-art:latest
