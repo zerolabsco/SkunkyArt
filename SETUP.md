@@ -22,7 +22,7 @@ below apply. A file named with `-c` must exist.
   * `lifetime` — How long a cached file is kept, in the time units below.
     Default `1w`.
   * `max-size` — Cache size cap in megabytes, default 200. When the cache
-    grows past it the whole directory is emptied, not trimmed.
+    grows past it, the oldest files are removed until it fits.
   * `update-interval` — Seconds between rotation passes, default 1. Each
     pass reads the whole cache directory, so raise it on a large cache.
 * `api-cache` — In-memory cache of DeviantArt API responses. Every page,
