@@ -21,17 +21,30 @@ import (
 type apiCache struct {
 	maxBytes int64
 	ttl      time.Duration
-	now      func() time.Time
+	// stale is how long past ttl an entry is kept to be served when upstream
+	// is blocked or unreachable. Zero keeps nothing past ttl.
+	stale time.Duration
+	now   func() time.Time
 
-	mu      sync.Mutex
-	entries map[string]*cacheEntry
-	lru     *list.List // front is most recently used
-	held    int64
-	hits    int64
-	misses  int64
+	mu        sync.Mutex
+	entries   map[string]*cacheEntry
+	lru       *list.List // front is most recently used
+	held      int64
+	hits      int64
+	misses    int64
+	staleHits int64
+
+	// blockedUntil is set when DeviantArt answers with a block. Until then a
+	// miss with nothing stale to serve gets blockResp back without an
+	// upstream call, so a banned instance stops hammering the WAF.
+	blockedUntil time.Time
+	blockResp    *cacheEntry
 
 	flight singleflight.Group
 }
+
+// blockBackoff is how long upstream is left alone after a block response.
+const blockBackoff = time.Minute
 
 // cacheEntry is one buffered response. header is a clone of the upstream
 // header; body is the whole body, read once.
@@ -44,10 +57,11 @@ type cacheEntry struct {
 	elem    *list.Element
 }
 
-func newAPICache(maxBytes int64, ttl time.Duration) *apiCache {
+func newAPICache(maxBytes int64, ttl, stale time.Duration) *apiCache {
 	return &apiCache{
 		maxBytes: maxBytes,
 		ttl:      ttl,
+		stale:    stale,
 		now:      time.Now,
 		entries:  map[string]*cacheEntry{},
 		lru:      list.New(),
@@ -87,16 +101,29 @@ type cachedTransport struct {
 	base  http.RoundTripper
 }
 
-// RoundTrip serves a hit from memory. A miss is fetched once per key however
-// many callers are waiting, buffered, stored if it is a 200, and handed to
-// every waiter as its own response.
+// RoundTrip serves a fresh hit from memory. A miss is fetched once per key
+// however many callers are waiting, buffered, stored if it is a 200, and
+// handed to every waiter as its own response.
+//
+// When upstream fails or answers with a block, a stale entry is served
+// instead if one is still held, so a short ban does not take the popular
+// pages down. A block also starts a backoff during which misses with nothing
+// stale get the block response back without an upstream call.
 func (t *cachedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if !cacheable(req) {
 		return t.base.RoundTrip(req)
 	}
 	key := cacheKey(req)
-	if e := t.cache.get(key); e != nil {
-		return e.response(req), nil
+	old, fresh := t.cache.get(key)
+	if fresh {
+		return old.response(req), nil
+	}
+	if blocked := t.cache.blockedResponse(); blocked != nil {
+		if old != nil {
+			t.cache.countStale()
+			return old.response(req), nil
+		}
+		return blocked.response(req), nil
 	}
 
 	v, err, _ := t.cache.flight.Do(key, func() (any, error) {
@@ -110,19 +137,55 @@ func (t *cachedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			return nil, err
 		}
 		e := &cacheEntry{key: key, status: resp.StatusCode, header: resp.Header.Clone(), body: body}
-		if e.status == http.StatusOK {
+		switch e.status {
+		case http.StatusOK:
 			t.cache.put(e)
+		case http.StatusForbidden, http.StatusTooManyRequests:
+			t.cache.block(e)
 		}
 		return e, nil
 	})
 	if err != nil {
+		if old != nil {
+			t.cache.countStale()
+			return old.response(req), nil
+		}
 		return nil, err
 	}
 	e, ok := v.(*cacheEntry)
 	if !ok {
 		return nil, io.ErrUnexpectedEOF
 	}
+	if e.status != http.StatusOK && old != nil {
+		t.cache.countStale()
+		return old.response(req), nil
+	}
 	return e.response(req), nil
+}
+
+// block records a block response and starts the backoff.
+func (c *apiCache) block(e *cacheEntry) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.blockedUntil = c.now().Add(blockBackoff)
+	c.blockResp = e
+}
+
+// blockedResponse returns the last block response while the backoff runs,
+// or nil once it is over.
+func (c *apiCache) blockedResponse() *cacheEntry {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.blockResp != nil && c.now().Before(c.blockedUntil) {
+		return c.blockResp
+	}
+	return nil
+}
+
+func (c *apiCache) countStale() {
+	c.mu.Lock()
+	c.staleHits++
+	c.mu.Unlock()
 }
 
 // response builds a fresh http.Response over the buffered body, so each
@@ -141,25 +204,31 @@ func (e *cacheEntry) response(req *http.Request) *http.Response {
 	}
 }
 
-// get returns the live entry for key, marking it most recently used, or nil.
-// An expired entry is dropped on the way out.
-func (c *apiCache) get(key string) *cacheEntry {
+// get returns the entry for key and whether it is still fresh. A fresh hit is
+// marked most recently used. An entry past ttl but within the stale window is
+// returned as not fresh, for the caller to fall back on; one past the stale
+// window is dropped.
+func (c *apiCache) get(key string) (*cacheEntry, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	e := c.entries[key]
 	if e == nil {
 		c.misses++
-		return nil
+		return nil, false
 	}
-	if !c.now().Before(e.expires) {
-		c.remove(e)
-		c.misses++
-		return nil
+	now := c.now()
+	if now.Before(e.expires) {
+		c.lru.MoveToFront(e.elem)
+		c.hits++
+		return e, true
 	}
-	c.lru.MoveToFront(e.elem)
-	c.hits++
-	return e
+	c.misses++
+	if now.Before(e.expires.Add(c.stale)) {
+		return e, false
+	}
+	c.remove(e)
+	return nil, false
 }
 
 // put stores e, evicting from the least recently used end until it fits. A
@@ -196,9 +265,10 @@ func (c *apiCache) remove(e *cacheEntry) {
 	c.held -= int64(len(e.body))
 }
 
-// stats reports the counters for the hourly log line.
-func (c *apiCache) stats() (hits, misses int64, entries int, held int64) {
+// stats reports the counters for the hourly log line. stale counts the
+// misses that were answered from an expired entry because upstream failed.
+func (c *apiCache) stats() (hits, misses, stale int64, entries int, held int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.hits, c.misses, len(c.entries), c.held
+	return c.hits, c.misses, c.staleHits, len(c.entries), c.held
 }

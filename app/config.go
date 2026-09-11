@@ -32,6 +32,7 @@ type apiCacheConfig struct {
 	Enabled bool   `json:"enabled"`
 	MaxSize int64  `json:"max-size"`
 	TTL     string `json:"ttl"`
+	Stale   string `json:"stale"`
 }
 
 type rateLimitConfig struct {
@@ -75,6 +76,7 @@ var CFG = config{
 		Enabled: true,
 		MaxSize: 64,
 		TTL:     "5i",
+		Stale:   "1h",
 	},
 	RateLimit: rateLimitConfig{
 		PerMinute: 60,
@@ -88,8 +90,9 @@ var CFG = config{
 
 var lifetimeParsed int64
 
-// apiCacheTTL is api-cache.ttl parsed, set by ExecuteConfig.
-var apiCacheTTL time.Duration
+// apiCacheTTL and apiCacheStale are api-cache.ttl and api-cache.stale parsed,
+// set by ExecuteConfig.
+var apiCacheTTL, apiCacheStale time.Duration
 
 // parseLifetime reads a duration in the config's unit syntax: a number
 // followed by i (minutes), h (hours), d (days), w (weeks), m (30-day
@@ -216,6 +219,13 @@ func ExecuteConfig() {
 			exit("config: api-cache.ttl: "+err.Error(), 1)
 		}
 		apiCacheTTL = d
+		if CFG.APICache.Stale != "" {
+			d, err := parseLifetime(CFG.APICache.Stale)
+			if err != nil {
+				exit("config: api-cache.stale: "+err.Error(), 1)
+			}
+			apiCacheStale = d
+		}
 	}
 
 	// per-minute 0 turns the limit off; a burst below one token would

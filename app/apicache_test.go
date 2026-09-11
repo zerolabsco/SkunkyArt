@@ -56,7 +56,7 @@ func get(t *testing.T, rt http.RoundTripper, url string) (int, string) {
 
 func TestSecondRequestIsServedFromCache(t *testing.T) {
 	up := &fakeRT{status: 200, body: `{"a":1}`}
-	rt := newAPICache(1<<20, time.Minute).transport(up)
+	rt := newAPICache(1<<20, time.Minute, 0).transport(up)
 
 	get(t, rt, puppyURL)
 	status, body := get(t, rt, puppyURL)
@@ -71,7 +71,7 @@ func TestSecondRequestIsServedFromCache(t *testing.T) {
 
 func TestExpiredEntryIsRefetched(t *testing.T) {
 	up := &fakeRT{status: 200, body: `{}`}
-	c := newAPICache(1<<20, time.Minute)
+	c := newAPICache(1<<20, time.Minute, 0)
 	now := time.Now()
 	c.now = func() time.Time { return now }
 	rt := c.transport(up)
@@ -85,24 +85,26 @@ func TestExpiredEntryIsRefetched(t *testing.T) {
 	}
 }
 
+// A 500 here rather than a 403: a 403 is a block and starts the backoff,
+// which is covered in apicache_stale_test.go.
 func TestNon200IsNotStored(t *testing.T) {
-	up := &fakeRT{status: 403, body: "blocked"}
-	rt := newAPICache(1<<20, time.Minute).transport(up)
+	up := &fakeRT{status: 500, body: "upstream broke"}
+	rt := newAPICache(1<<20, time.Minute, 0).transport(up)
 
 	status, body := get(t, rt, puppyURL)
 	get(t, rt, puppyURL)
 
-	if status != 403 || body != "blocked" {
-		t.Errorf("first response is %d %q, want the upstream 403 passed through", status, body)
+	if status != 500 || body != "upstream broke" {
+		t.Errorf("first response is %d %q, want the upstream 500 passed through", status, body)
 	}
 	if up.count() != 2 {
-		t.Errorf("upstream called %d times, want 2: a 403 must not be cached", up.count())
+		t.Errorf("upstream called %d times, want 2: a 500 must not be cached", up.count())
 	}
 }
 
 func TestBypassesSessionAndOtherHosts(t *testing.T) {
 	up := &fakeRT{status: 200, body: "x"}
-	rt := newAPICache(1<<20, time.Minute).transport(up)
+	rt := newAPICache(1<<20, time.Minute, 0).transport(up)
 
 	for _, url := range []string{
 		"https://www.deviantart.com/_puppy",
@@ -119,7 +121,7 @@ func TestBypassesSessionAndOtherHosts(t *testing.T) {
 
 func TestKeyIgnoresCSRFToken(t *testing.T) {
 	up := &fakeRT{status: 200, body: "x"}
-	rt := newAPICache(1<<20, time.Minute).transport(up)
+	rt := newAPICache(1<<20, time.Minute, 0).transport(up)
 
 	get(t, rt, puppyURL)
 	get(t, rt, strings.Replace(puppyURL, "csrf_token=abc", "csrf_token=def", 1))
@@ -131,7 +133,7 @@ func TestKeyIgnoresCSRFToken(t *testing.T) {
 
 func TestByteBoundEvictsLeastRecentlyUsed(t *testing.T) {
 	up := &fakeRT{status: 200, body: strings.Repeat("x", 100)}
-	rt := newAPICache(250, time.Minute).transport(up)
+	rt := newAPICache(250, time.Minute, 0).transport(up)
 	a := "https://www.deviantart.com/_puppy/a?p=1"
 	b := "https://www.deviantart.com/_puppy/b?p=1"
 	c := "https://www.deviantart.com/_puppy/c?p=1"
@@ -151,7 +153,7 @@ func TestByteBoundEvictsLeastRecentlyUsed(t *testing.T) {
 
 func TestConcurrentMissesMakeOneUpstreamCall(t *testing.T) {
 	up := &fakeRT{status: 200, body: "x", delay: 50 * time.Millisecond}
-	rt := newAPICache(1<<20, time.Minute).transport(up)
+	rt := newAPICache(1<<20, time.Minute, 0).transport(up)
 
 	var wg sync.WaitGroup
 	for range 20 {
@@ -166,16 +168,16 @@ func TestConcurrentMissesMakeOneUpstreamCall(t *testing.T) {
 
 func TestStatsCountHitsAndMisses(t *testing.T) {
 	up := &fakeRT{status: 200, body: "abc"}
-	c := newAPICache(1<<20, time.Minute)
+	c := newAPICache(1<<20, time.Minute, 0)
 	rt := c.transport(up)
 
 	get(t, rt, puppyURL)
 	get(t, rt, puppyURL)
 	get(t, rt, puppyURL)
 
-	hits, misses, entries, held := c.stats()
-	if hits != 2 || misses != 1 || entries != 1 || held != 3 {
-		t.Errorf("stats = %d hits, %d misses, %d entries, %d bytes; want 2, 1, 1, 3", hits, misses, entries, held)
+	hits, misses, stale, entries, held := c.stats()
+	if hits != 2 || misses != 1 || stale != 0 || entries != 1 || held != 3 {
+		t.Errorf("stats = %d hits, %d misses, %d stale, %d entries, %d bytes; want 2, 1, 0, 1, 3", hits, misses, stale, entries, held)
 	}
 }
 
@@ -185,7 +187,7 @@ func TestStatsCountHitsAndMisses(t *testing.T) {
 func TestHitDoesNotConsumeAThrottleSlot(t *testing.T) {
 	up := &fakeRT{status: 200, body: "x"}
 	th := &daThrottle{base: up, sem: make(chan struct{}, 1)}
-	rt := newAPICache(1<<20, time.Minute).transport(th)
+	rt := newAPICache(1<<20, time.Minute, 0).transport(th)
 
 	get(t, rt, puppyURL) // populate through the throttle
 
