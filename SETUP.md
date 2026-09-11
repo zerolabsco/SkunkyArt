@@ -50,6 +50,12 @@ below apply. A file named with `-c` must exist.
     `0` turns the limit off.
   * `burst` — How many requests a client can make at once before the rate
     applies, default 20.
+* `upstream` — How fast the instance itself talks to DeviantArt, whichever
+  client asked. DeviantArt bans an address that asks too often, so an
+  instance that gets banned should slow this down before anything else.
+  * `min-interval-ms` — Minimum gap between two requests to DeviantArt, in
+    milliseconds. Default 400.
+  * `max-concurrent` — Requests to DeviantArt in flight at once. Default 2.
 * `static-path` — Directory of templates, styles and catalogues, read into
   memory at startup. Default `static`. Ignored by a binary built with the
   `embed` tag.

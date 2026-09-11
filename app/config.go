@@ -40,6 +40,12 @@ type rateLimitConfig struct {
 	Burst     int `json:"burst"`
 }
 
+// upstreamConfig paces the instance's own requests to DeviantArt.
+type upstreamConfig struct {
+	MinIntervalMS int `json:"min-interval-ms"`
+	MaxConcurrent int `json:"max-concurrent"`
+}
+
 type config struct {
 	cfg           string
 	Listen        string          `json:"listen"`
@@ -47,6 +53,7 @@ type config struct {
 	Cache         cacheConfig     `json:"cache"`
 	APICache      apiCacheConfig  `json:"api-cache"`
 	RateLimit     rateLimitConfig `json:"rate-limit"`
+	Upstream      upstreamConfig  `json:"upstream"`
 	Proxy         bool            `json:"proxy"`
 	Nsfw          bool            `json:"nsfw"`
 	HideAI        bool            `json:"hide-ai"`
@@ -81,6 +88,10 @@ var CFG = config{
 	RateLimit: rateLimitConfig{
 		PerMinute: 60,
 		Burst:     20,
+	},
+	Upstream: upstreamConfig{
+		MinIntervalMS: 400,
+		MaxConcurrent: 2,
 	},
 	StaticPath: "static",
 	UserAgent:  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
@@ -233,6 +244,11 @@ func ExecuteConfig() {
 	if CFG.RateLimit.PerMinute > 0 {
 		daLimiter = newRateLimiter(CFG.RateLimit.PerMinute, max(CFG.RateLimit.Burst, 1))
 	}
+
+	// Read here so InstallDAThrottle, which runs next, builds the throttle
+	// from the file rather than the source defaults.
+	daMinInterval = time.Duration(max(CFG.Upstream.MinIntervalMS, 0)) * time.Millisecond
+	daMaxConcurrent = max(CFG.Upstream.MaxConcurrent, 1)
 
 	static.StaticPath = CFG.StaticPath
 	devianter.UserAgent = CFG.UserAgent
