@@ -87,7 +87,7 @@ func ResolveLang(acceptLanguage string) string {
 		return DefaultLang
 	}
 
-	for _, part := range strings.Split(acceptLanguage, ",") {
+	for part := range strings.SplitSeq(acceptLanguage, ",") {
 		tag := strings.TrimSpace(part)
 		if i := strings.Index(tag, ";"); i >= 0 {
 			tag = tag[:i]

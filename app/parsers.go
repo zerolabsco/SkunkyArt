@@ -79,9 +79,6 @@ func (s skunkyart) ParseComments(c devianter.Comments, daError devianter.Error) 
 	return cmmts.String()
 }
 
-// DeviationList renders devs as an HTML grid, or as an Atom feed when the
-// request asked for one and allowAtom permits it. NSFW entries are dropped
-// unless the instance allows them. Passing content adds a navigation bar.
 // VisibleDeviation reports whether a deviation may be shown by this instance.
 //
 // Both the HTML listing and the JSON API ask this, deliberately: an API that
@@ -95,6 +92,9 @@ func VisibleDeviation(d *devianter.Deviation) bool {
 	return !d.NSFW || CFG.Nsfw
 }
 
+// DeviationList renders devs as an HTML grid, or as an Atom feed when the
+// request asked for one and allowAtom permits it. NSFW entries are dropped
+// unless the instance allows them. Passing content adds a navigation bar.
 func (s skunkyart) DeviationList(devs []devianter.Deviation, allowAtom bool, content ...DeviationList) string {
 	if s.Atom && s.Page > 1 {
 		s.ReturnHTTPError(400)

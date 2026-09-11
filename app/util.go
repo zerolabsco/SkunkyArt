@@ -393,10 +393,7 @@ func (s skunkyart) NavBase(c DeviationList) string {
 	// i reached 1, so page one rendered no numbers at all. With nothing before it
 	// to link back to and no further page to link on, the whole panel came out as
 	// a bare <br>.
-	last := c.Pages
-	if p > last {
-		last = p
-	}
+	last := max(c.Pages, p)
 
 	for i, x := p-6, 0; (i <= last && i <= p+6) && x < 12; i++ {
 		if i > 0 {
