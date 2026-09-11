@@ -28,6 +28,7 @@ func main() {
 	// After the copy, not before: the catalogues are assets, and ExecuteConfig
 	// runs while static/ is still unread.
 	app.LoadLanguages()
+	app.ParseTemplates()
 
 	// Rate/concurrency-limit + time-out outbound DeviantArt requests so bot floods
 	// can't exhaust the process or get our egress IP banned by CloudFront/WAF.

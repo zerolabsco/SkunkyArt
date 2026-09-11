@@ -27,10 +27,13 @@ func wr(w io.Writer, s string) {
 	_, _ = io.WriteString(w, s)
 }
 
-func exit(msg string, code int) {
+// exit is a variable so a test can observe a fatal path without ending the
+// test binary.
+var exit = func(msg string, code int) {
 	println(msg)
 	os.Exit(code)
 }
+
 func try(e error) {
 	if e != nil {
 		println(e.Error())
@@ -156,23 +159,46 @@ type skunkyart struct {
 	}
 }
 
-// ExecuteTemplate renders the named template from dir with data, responding 500
-// if the template cannot be parsed.
-func (s skunkyart) ExecuteTemplate(file, dir string, data any) {
-	var buf strings.Builder
-	tmp := template.New(file)
-	// T is bound to this request's language, so templates ask for a key and
-	// never have to know which catalogue answered.
-	tmp = tmp.Funcs(template.FuncMap{
-		"T": func(key string) string { return T(s.Lang, key) },
-	})
-	tmp, err := tmp.ParseFS(static.Templates, dir+"/*")
-	if err != nil {
+// pageTemplates is every page template parsed once per language, by
+// ParseTemplates. One set per language because T is bound at parse time, so
+// templates ask for a key and never have to know which catalogue answered.
+var pageTemplates = map[string]*template.Template{}
+
+// ParseTemplates parses static/html once for each loaded language. Call it at
+// startup after LoadLanguages; a template that does not parse exits the
+// process, since it would otherwise be a 500 on every request for that page.
+func ParseTemplates() {
+	langs := Languages()
+	if len(langs) == 0 {
+		langs = []string{DefaultLang}
+	}
+	for _, lang := range langs {
+		tmp := template.New("").Funcs(template.FuncMap{
+			"T": func(key string) string { return T(lang, key) },
+		})
+		tmp, err := tmp.ParseFS(static.Templates, "html/*")
+		if err != nil {
+			exit("templates: "+err.Error(), 1)
+			return
+		}
+		pageTemplates[lang] = tmp
+	}
+}
+
+// ExecuteTemplate renders the named page template with data in the request's
+// language, responding 500 if the templates were never parsed.
+func (s skunkyart) ExecuteTemplate(file, _ string, data any) {
+	tmp := pageTemplates[s.Lang]
+	if tmp == nil {
+		tmp = pageTemplates[DefaultLang]
+	}
+	if tmp == nil {
 		s.Writer.WriteHeader(500)
-		wr(s.Writer, err.Error())
+		wr(s.Writer, "templates not parsed")
 		return
 	}
-	try(tmp.Execute(&buf, &data))
+	var buf strings.Builder
+	try(tmp.ExecuteTemplate(&buf, file, &data))
 	wr(s.Writer, buf.String())
 }
 
