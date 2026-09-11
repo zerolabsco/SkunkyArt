@@ -39,13 +39,18 @@ func main() {
 	// and let the request escape the throttle and the configured User-Agent.
 	go app.RefreshInstances()
 
+	// The first session bootstrap runs before the listener opens: requests
+	// that arrive before it finishes go to DeviantArt without a token and
+	// fail, which showed up as 502s for the first seconds after a restart.
+	if err := devianter.UpdateCSRF(); err != nil {
+		println(err.Error())
+	}
 	go func() {
 		for {
-			err := devianter.UpdateCSRF()
-			if err != nil {
+			time.Sleep(12 * time.Hour)
+			if err := devianter.UpdateCSRF(); err != nil {
 				println(err.Error())
 			}
-			time.Sleep(12 * time.Hour)
 		}
 	}()
 
