@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"regexp"
 	"skunkyart/static"
@@ -27,19 +28,26 @@ type cacheConfig struct {
 	UpdateInterval int64  `json:"update-interval"`
 }
 
+type apiCacheConfig struct {
+	Enabled bool   `json:"enabled"`
+	MaxSize int64  `json:"max-size"`
+	TTL     string `json:"ttl"`
+}
+
 type config struct {
 	cfg           string
-	Listen        string      `json:"listen"`
-	URI           string      `json:"uri"`
-	Cache         cacheConfig `json:"cache"`
-	Proxy         bool        `json:"proxy"`
-	Nsfw          bool        `json:"nsfw"`
-	HideAI        bool        `json:"hide-ai"`
-	Theme         string      `json:"theme"`
-	Language      string      `json:"language"`
-	UserAgent     string      `json:"user-agent"`
-	DownloadProxy string      `json:"download-proxy"`
-	StaticPath    string      `json:"static-path"`
+	Listen        string         `json:"listen"`
+	URI           string         `json:"uri"`
+	Cache         cacheConfig    `json:"cache"`
+	APICache      apiCacheConfig `json:"api-cache"`
+	Proxy         bool           `json:"proxy"`
+	Nsfw          bool           `json:"nsfw"`
+	HideAI        bool           `json:"hide-ai"`
+	Theme         string         `json:"theme"`
+	Language      string         `json:"language"`
+	UserAgent     string         `json:"user-agent"`
+	DownloadProxy string         `json:"download-proxy"`
+	StaticPath    string         `json:"static-path"`
 }
 
 // CFG is the running instance's configuration, holding the defaults below until
@@ -55,6 +63,11 @@ var CFG = config{
 		Path:           "cache",
 		UpdateInterval: 1,
 	},
+	APICache: apiCacheConfig{
+		Enabled: true,
+		MaxSize: 64,
+		TTL:     "5i",
+	},
 	StaticPath: "static",
 	UserAgent:  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
 	Proxy:      true,
@@ -62,6 +75,43 @@ var CFG = config{
 }
 
 var lifetimeParsed int64
+
+// apiCacheTTL is api-cache.ttl parsed, set by ExecuteConfig.
+var apiCacheTTL time.Duration
+
+// parseLifetime reads a duration in the config's unit syntax: a number
+// followed by i (minutes), h (hours), d (days), w (weeks), m (30-day
+// months) or y (360-day years).
+func parseLifetime(s string) (time.Duration, error) {
+	if s == "" {
+		return 0, errors.New("empty lifetime")
+	}
+	numstr := regexp.MustCompile("[0-9]+").FindAllString(s, -1)
+	if len(numstr) == 0 {
+		return 0, errors.New("lifetime has no number: " + s)
+	}
+	num, _ := strconv.Atoi(numstr[len(numstr)-1])
+
+	day := 24 * time.Hour
+	var unit time.Duration
+	switch s[len(s)-1:] {
+	case "i":
+		unit = time.Minute
+	case "h":
+		unit = time.Hour
+	case "d":
+		unit = day
+	case "w":
+		unit = 7 * day
+	case "m":
+		unit = 30 * day
+	case "y":
+		unit = 360 * day
+	default:
+		return 0, errors.New("invalid unit specified: " + s[len(s)-1:])
+	}
+	return unit * time.Duration(num), nil
+}
 
 // checkCacheWritable creates the cache directory if it is missing and confirms
 // this process can actually write into it, returning the error that a real cache
@@ -104,29 +154,11 @@ func ExecuteConfig() {
 			}
 
 			if CFG.Cache.Lifetime != "" {
-				var duration int64
-				day := 24 * time.Hour.Milliseconds()
-				numstr := regexp.MustCompile("[0-9]+").FindAllString(CFG.Cache.Lifetime, -1)
-				num, _ := strconv.Atoi(numstr[len(numstr)-1])
-
-				switch unit := CFG.Cache.Lifetime[len(CFG.Cache.Lifetime)-1:]; unit {
-				case "i":
-					duration = time.Minute.Milliseconds()
-				case "h":
-					duration = time.Hour.Milliseconds()
-				case "d":
-					duration = day
-				case "w":
-					duration = day * 7
-				case "m":
-					duration = day * 30
-				case "y":
-					duration = day * 360
-				default:
-					exit("Invalid unit specified: "+unit, 1)
+				d, err := parseLifetime(CFG.Cache.Lifetime)
+				if err != nil {
+					exit("config: cache.lifetime: "+err.Error(), 1)
 				}
-
-				lifetimeParsed = duration * int64(num)
+				lifetimeParsed = d.Milliseconds()
 			}
 			// max-size is documented in megabytes. This was 1024^2, which in Go is
 			// XOR (1026), not exponentiation — so the cap was ~1000x too small.
@@ -150,6 +182,14 @@ func ExecuteConfig() {
 		case "auto", "dark", "light":
 		default:
 			exit("config: theme must be one of auto, dark, light; got "+CFG.Theme, 1)
+		}
+
+		if CFG.APICache.Enabled {
+			d, err := parseLifetime(CFG.APICache.TTL)
+			if err != nil {
+				exit("config: api-cache.ttl: "+err.Error(), 1)
+			}
+			apiCacheTTL = d
 		}
 
 		static.StaticPath = CFG.StaticPath

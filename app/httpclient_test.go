@@ -116,14 +116,24 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { retu
 // InstallDAThrottle must preserve proxy-from-environment so HTTPS_PROXY (VPN
 // egress) keeps working, and must not panic on a repeat call.
 func TestInstallDAThrottlePreservesProxy(t *testing.T) {
-	orig := http.DefaultTransport
-	defer func() { http.DefaultTransport = orig }()
+	orig, origCache := http.DefaultTransport, daCache
+	defer func() { http.DefaultTransport, daCache = orig, origCache }()
 
 	InstallDAThrottle()
 
-	th, ok := http.DefaultTransport.(*daThrottle)
+	// With api-cache on (the default) the cache is outermost and the throttle
+	// sits inside it; with it off the throttle is outermost.
+	rt := http.DefaultTransport
+	if CFG.APICache.Enabled {
+		ct, ok := rt.(*cachedTransport)
+		if !ok {
+			t.Fatalf("DefaultTransport is not the cache, got %T", rt)
+		}
+		rt = ct.base
+	}
+	th, ok := rt.(*daThrottle)
 	if !ok {
-		t.Fatalf("DefaultTransport was not wrapped, got %T", http.DefaultTransport)
+		t.Fatalf("DefaultTransport was not wrapped by the throttle, got %T", rt)
 	}
 	base, ok := th.base.(*http.Transport)
 	if !ok {

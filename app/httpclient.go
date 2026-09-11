@@ -81,11 +81,40 @@ func tunedTransport() *http.Transport {
 	return t
 }
 
-// InstallDAThrottle wraps http.DefaultTransport with the rate/concurrency limits and
-// timeouts above. Call once at startup, before any DeviantArt request is made.
+// daCache is the API response cache shared by every transport, or nil when
+// api-cache.enabled is false.
+var daCache *apiCache
+
+// chain wraps base with the throttle and, when enabled, the cache in front
+// of it, so a hit never spends a throttle slot.
+func chain(base http.RoundTripper) http.RoundTripper {
+	rt := throttled(base)
+	if daCache != nil {
+		return daCache.transport(rt)
+	}
+	return rt
+}
+
+// logCacheStatsForever prints one line an hour so an operator can see the
+// cache working without an endpoint. Run it in its own goroutine.
+func logCacheStatsForever(c *apiCache) {
+	for {
+		time.Sleep(time.Hour)
+		hits, misses, entries, held := c.stats()
+		println("api cache:", hits, "hits,", misses, "misses,", entries, "entries,", held>>20, "MB held")
+	}
+}
+
+// InstallDAThrottle wraps http.DefaultTransport with the rate/concurrency limits
+// and timeouts above, and with the API response cache when it is enabled. Call
+// once at startup, after ExecuteConfig and before any DeviantArt request.
 func InstallDAThrottle() {
 	baseTransport = tunedTransport()
-	http.DefaultTransport = throttled(baseTransport)
+	if CFG.APICache.Enabled {
+		daCache = newAPICache(CFG.APICache.MaxSize<<20, apiCacheTTL)
+		go logCacheStatsForever(daCache)
+	}
+	http.DefaultTransport = chain(baseTransport)
 }
 
 // throttled wraps base with the DeviantArt rate and concurrency limits.
@@ -104,5 +133,5 @@ func ProxiedTransport(proxy *url.URL) http.RoundTripper {
 		base = tunedTransport()
 	}
 	base.Proxy = http.ProxyURL(proxy)
-	return throttled(base)
+	return chain(base)
 }
