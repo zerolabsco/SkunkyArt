@@ -233,7 +233,7 @@ func (s skunkyart) Error(dAerr devianter.Error) {
 	var msg strings.Builder
 	msg.WriteString(`<html><link rel="stylesheet" href="`)
 	msg.WriteString(URLBuilder(s.Host, "stylesheet"))
-	msg.WriteString(`" /><h3>DeviantArt error — '`)
+	msg.WriteString(`" /><h3>` + esc(T(s.Lang, "error.upstream")) + ` — '`)
 	msg.WriteString(esc(reason))
 	msg.WriteString("'</h3></html>")
 
@@ -430,7 +430,7 @@ func (s skunkyart) NavBase(c DeviationList) string {
 	p := s.Page
 
 	if p > 1 {
-		prevrev("<= Prev |", p-1, false)
+		prevrev("<= "+esc(T(s.Lang, "nav.prev"))+" |", p-1, false)
 	} else {
 		p = 1
 	}
@@ -456,7 +456,7 @@ func (s skunkyart) NavBase(c DeviationList) string {
 	}
 
 	if c.More {
-		prevrev("| Next =>", p+1, false)
+		prevrev("| "+esc(T(s.Lang, "nav.next"))+" =>", p+1, false)
 	}
 
 	return list.String()

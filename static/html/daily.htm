@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{.Lang}}">
     {{template "head" . }}
     <main>
         {{template "header" . }}
         {{if ne .Templates.DDStrips ""}}
-        <h2 id="strips"><a href="#strips">#</a> Strips</h2>
+        <h2 id="strips"><a href="#strips">#</a> {{T "daily.strips"}}</h2>
         {{.Templates.DDStrips}}
         {{end}}
-        <h2 id="content"><a href="#content">#</a> Content</h2>
+        <h2 id="content"><a href="#content">#</a> {{T "gallery.content"}}</h2>
         {{.Templates.SomeList}}
     </main>
 </html>

@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{.Lang}}">
     {{template "head" .}}
     <main>
         {{template "header" .}}
         <p>
-            SkunkyArt is an alternative frontend for deviantart.com, written in Go.
+            {{T "about.blurb"}}
         </p>
         <h3><a href="https://github.com/krazywarez/skunky-art/issues" target="_blank">{{T "about.report"}}</a></h3>
         <b>{{T "about.settings"}}</b>

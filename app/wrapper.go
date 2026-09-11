@@ -172,7 +172,7 @@ func (s skunkyart) GRUser() {
 			for _, x := range content.Content.Gruser.Page.Modules {
 				if len(x.ModuleData.Folders.Results) != 0 {
 					var folders strings.Builder
-					folders.WriteString(`<h1 id="folders"><a href="#folder">#</a> Folders</h1><div class="folders"><br>`)
+					folders.WriteString(`<h1 id="folders"><a href="#folders">#</a> ` + esc(T(s.Lang, "gallery.folders")) + `</h1><div class="folders"><br>`)
 					for _, x := range x.ModuleData.Folders.Results {
 						if x.FolderId != -1 && x.Size != 0 {
 							folders.WriteString(`<div class="block folder-item">`)
@@ -203,7 +203,7 @@ func (s skunkyart) GRUser() {
 							folders.WriteString("</div>")
 						}
 					}
-					folders.WriteString(`</div><h1 id="content"><a href="#content">#</a> Content</h1>`)
+					folders.WriteString(`</div><h1 id="content"><a href="#content">#</a> ` + esc(T(s.Lang, "gallery.content")) + `</h1>`)
 					group.Gallery.Folders = template.HTML(folders.String()) //nolint:gosec // G203: escaped above
 				}
 
@@ -248,7 +248,7 @@ func (s skunkyart) Deviation(author, postname string) {
 		s.Writer.WriteHeader(403)
 		wr(s.Writer, `<html><link rel="stylesheet" href="`+
 			URLBuilder(s.Host, "stylesheet")+
-			`" /><h1>NSFW content are disabled on this instance.</h1></html>`)
+			`" /><h1>`+esc(T(s.Lang, "error.nsfw"))+`</h1></html>`)
 		return
 	}
 

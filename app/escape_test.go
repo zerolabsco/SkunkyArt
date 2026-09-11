@@ -43,9 +43,9 @@ func TestEveryPageTemplateRenders(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	uri := "/"
-	skunkyart{Writer: rec}.ExecuteTemplate("index.htm", "html", &uri)
-	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "</html>") {
+	s := skunkyart{Writer: rec, Host: "http://localhost", BasePath: "/", Lang: "en"}
+	s.ExecuteTemplate("index.htm", "html", &s)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "</html>") || !strings.Contains(rec.Body.String(), `lang="en"`) {
 		t.Errorf("index.htm: status %d, body %q", rec.Code, rec.Body.String())
 	}
 }
