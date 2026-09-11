@@ -19,7 +19,7 @@ var version = "dev"
 
 func main() {
 	app.Release.Version = version
-	app.Release.Description = "Themes, a JSON API for search and deviations, and a multilingual interface"
+	app.Release.Description = "Upstream request caching and rate limiting, escaped output, a valid Atom feed, and a translated interface"
 
 	app.ExecuteCommandLineArguments()
 	app.ExecuteConfig()
