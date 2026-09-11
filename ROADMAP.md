@@ -13,6 +13,13 @@ Existing gitbay issues: #1 cleanup, #2 search filters, #3 description
 parsing, #4 instance checker, #5 Makefile, #6 emote bug. They are mapped
 below where they overlap.
 
+## Status
+
+Everything below except 5.3 and 5.5 shipped in v1.5.0 (2026-09-11), with
+v1.5.1 fixing the release build. Merge requests !6 through !25 on gitbay.
+Still open: #33 (LibRedirect submission), #1, #2, #3 and #6 from the
+original list, which need real DeviantArt payloads to work from.
+
 ## Ordering principle
 
 Frontend proxies get blocked upstream. The existing throttle
@@ -42,6 +49,8 @@ Concurrent requests for the same page each go upstream. No response carries
 
 ### 0.1 CI on merge requests (S, #7)
 
+Done in !6.
+
 No pipeline runs `go vet`, `go test` or `golangci-lint`. The only workflow
 is the GitHub release build; gitbay has zero builds. `.golangci.yml` exists
 but is never run.
@@ -56,6 +65,8 @@ Verify: an MR with a failing test shows a failed build.
 ## Tier 1: reduce upstream requests
 
 ### 1.1 Cache DeviantArt API responses (L, #8)
+
+Done in !8.
 
 Add an in-memory cache in front of every devianter call: DD, search,
 deviation, gruser, gallery, favourites, comments. Keyed by endpoint plus
@@ -80,6 +91,8 @@ sequential requests for one page make one upstream call.
 
 ### 1.2 Cache avatars and emotes, add Cache-Control (M, #9)
 
+Done in !9.
+
 `Emojitar` in `app/wrapper.go` fetches from a.deviantart.net or
 e.deviantart.net on every request and never stores the result. Route it
 through the same disk and memory cache path as `DownloadAndSendMedia`.
@@ -96,6 +109,8 @@ present in `curl -I` output.
 
 ### 1.3 robots.txt and per-client rate limit (S, #10)
 
+Done in !10.
+
 Serve `/robots.txt` disallowing `/search`, `/api`, `/group_user`,
 `/media` and any path with `?p=`. Add a per-client-IP token bucket ahead of
 the upstream throttle so one crawler cannot consume the whole DA budget and
@@ -108,6 +123,8 @@ Files: `app/router.go`, new `app/ratelimit.go`, `app/config.go`,
 Verify: test that N+1 requests from one address within the window get 429.
 
 ### 1.4 Fewer calls per page (M, #11)
+
+Done in !11.
 
 Post view is two API calls because comments are fetched inline. Move
 comments behind a link (`/post/{author}/{name}/comments` or `?comments=1`)
@@ -123,6 +140,8 @@ transport.
 
 ### 1.5 Media cache on by default (S, #12)
 
+Done in !12.
+
 A proxying instance with no cache re-fetches every image from wixmp on every
 view. Set `cache.enabled: true` in the built-in defaults in `app/config.go`
 and in `config.example.json`, with a sane `lifetime` and `max-size`. Keep
@@ -133,6 +152,8 @@ Verify: fresh start with no config writes to the cache directory.
 ## Tier 2: security and correctness
 
 ### 2.1 Escape template output (M, #13)
+
+Done in !7.
 
 `app/util.go` imports `text/template`. Nothing interpolated is escaped: the
 search query in `static/html/search.htm` and `head.htm`, and every DA
@@ -150,12 +171,16 @@ Land before other template work.
 
 ### 2.2 Restore the user About branch (S, #14)
 
+Done in !13.
+
 `app/wrapper.go:35` has `else if false`, inherited from upstream commit
 048bb47. Registration date, interests, social links and bio never render for
 users. Find out why it was disabled (likely a devianter struct change),
 restore the branch, add a test with a fixture.
 
 ### 2.3 Group search pagination (S, #15)
+
+Done in !13.
 
 `app/wrapper.go:274` increments the page and requests offset `10*page`, so
 page two starts at result 20 and results 10 to 19 are never shown. The nav
@@ -164,9 +189,13 @@ bar also shows the incremented number. Use `10*(page-1)` and do not mutate
 
 ### 2.4 Emojitar writes a body after 404 (S, #16)
 
+Done in !9.
+
 `app/wrapper.go:344` lacks a `return` after `ReturnHTTPError(404)`.
 
 ### 2.5 Valid Atom feed (S, #17)
+
+Done in !15.
 
 `DeviationList` in `app/parsers.go` emits no feed-level `<id>` or
 `<updated>`, bare integer entry ids, RFC 1123 `<published>` instead of RFC
@@ -176,16 +205,22 @@ elements.
 
 ### 2.6 `-c` bounds check (S, #18)
 
+Done in !13.
+
 `app/cli.go:29` checks `len(a) >= 2` instead of `n+1 < len(a)`;
 `skunkyart -x -c` panics.
 
 ### 2.7 Sanitize the 502 page (S, #19)
+
+Done in !7.
 
 `Error` in `app/util.go` writes the upstream error, including the full
 CloudFront block page, into an `<h3>` unescaped. Truncate to one line and
 escape. Folds into 2.1 if done together.
 
 ### 2.8 Parse templates once (S, #20)
+
+Done in !13.
 
 `ExecuteTemplate` calls `ParseFS` on every request. Parse at startup;
 supply the per-request `T` function through the data struct or a per-request
@@ -195,6 +230,8 @@ supply the per-request `T` function through the data struct or a per-request
 
 ### 3.1 Config-less start and default alignment (S, #21)
 
+Done in !16.
+
 `ExecuteConfig` exits if `config.json` is missing even though defaults
 exist. Start with defaults when no `-c` is given and the default file is
 absent. Align the built-in `nsfw: true` with the example's `false`, or
@@ -202,17 +239,23 @@ document why they differ.
 
 ### 3.2 Cache documentation (S, #22)
 
+Done in !16.
+
 `SETUP.md`: `update-interval` is in seconds (the example scans every 5s);
 the `d` unit works but is unlisted; `y` is 360 days; exceeding `max-size`
 deletes the whole cache directory; `lifetime: null` in the example.
 
 ### 3.3 API and search type docs (S, #23)
 
+Done in !16.
+
 `API.md` says `t` is text search; devianter defines it as tag. The
 "Folders" option in `static/html/gruser.htm` maps to `f`, which is
 favourites. Fix the doc and rename or remove the option.
 
 ### 3.4 i18n coverage (M, #24)
+
+Done in !17.
 
 Go-built HTML hardcodes English: comment headers, "In reply to",
 pagination, folder and content headings, "No results", "[ TEXT ]".
@@ -223,6 +266,8 @@ language, and either use or remove `Languages()`.
 
 ### 3.5 systemd unit (S, #25)
 
+Done in !18.
+
 `services/skunkyart.example.service` uses `Directory=` (not a valid key),
 placeholder paths, and says it was never tested. Write a working unit with
 `WorkingDirectory`, `User`, `DynamicUser` or a dedicated user,
@@ -230,10 +275,14 @@ placeholder paths, and says it was never tested. Write a working unit with
 
 ### 3.6 SETUP.md structure (S, #26)
 
+Done in !16.
+
 The nginx section sits between config keys; `theme` and `language` come
 after it. Reorder: config keys, units, reverse proxy.
 
 ### 3.7 README (S, #27)
+
+Done in !18.
 
 Add: endpoints and what they do, running the binary without Docker with
 the service files, what `REDIRECTS.md` is for (redirector rules), and a
@@ -243,6 +292,8 @@ screenshot.
 
 ### 4.1 Viewport and mobile CSS (S, #28)
 
+Done in !19.
+
 `static/html/head.htm` and `index.htm` use `initial-scale=0.4` and
 `height=device-height`; `skunky.css` then compensates with
 `* { font-size: 120% }` in portrait. Use `width=device-width,
@@ -251,11 +302,15 @@ width before and after.
 
 ### 4.2 Accessibility (S, #29)
 
+Done in !19.
+
 Listing and avatar images in `DeviationList`, `ParseComments` and
 `BuildUserPlate` have no `alt`. The post page has no heading element for
 the title. Add both.
 
 ### 4.3 Index stylesheet (S, #30)
+
+Done in !19.
 
 `static/html/index.htm` carries an inline stylesheet duplicating layout
 rules. Move it into `skunky.css`.
@@ -263,6 +318,8 @@ rules. Move it into `skunky.css`.
 ## Tier 5: identity and reach
 
 ### 5.1 One canonical forge (S, #31)
+
+Done in !20.
 
 Origin and issues are on gitbay; releases, the image, Dependabot, the
 instances.json fetch at `app/util.go:64`, the About page "Report an issue"
@@ -274,16 +331,22 @@ README and leave the links.
 
 ### 5.2 Instance checker (M, issue #4, #32)
 
+Done in !21.
+
 A scheduled job that fetches each instance's `/api/instance` and marks dead
 ones in `INSTANCES.md`, or a CI job that fails when one is down.
 
 ### 5.3 LibRedirect listing (S, #33)
+
+Open. The two upstream pull requests are written up on #33.
 
 `REDIRECTS.md` already describes the URL mapping. Check whether LibRedirect
 lists SkunkyArt with the dead upstream instances and submit the fork and
 art.krz.sh. This is the cheapest way to get users.
 
 ### 5.4 Makefile and binary releases (S, issue #5, #34)
+
+Done in !22.
 
 Targets for build with the embed tag and version stamp, test, lint.
 Publish binaries alongside the image on release tags.
@@ -299,25 +362,17 @@ Publish binaries alongside the image on release tags.
 - #6 emote bug: the `a.Val[8:9] == "e"` and `[37:len-4]` offsets in the
   HTML branch of `ParseDescription`. Parse the URL instead of slicing.
 
-## Stacked MR order
+## Merge record
 
-Each MR branches from the previous one's tip and is merged in order.
+Merged into main in this order on 2026-09-11, each stacked on the one
+before: !6 (0.1), !7 (2.1, 2.7), !8 (1.1), !9 (1.2, 2.4), !10 (1.3),
+!11 (1.4), !12 (1.5), !13 (2.2, 2.3, 2.6, 2.8), !15 (2.5), !16 (3.1,
+3.2, 3.3, 3.6), !17 (3.4), !18 (3.5, 3.7), !19 (4.1, 4.2, 4.3), !20
+(5.1), !21 (5.2), !22 (5.4). Then !23 (release string), !24 (Go 1.26 in
+the image and binaries builds) and !25 (no VCS stamping) for the
+release itself.
 
-1. `ci/pipeline` (0.1)
-2. `fix/escape-templates` (2.1 + 2.7)
-3. `feat/api-cache` (1.1, after its spec is approved)
-4. `feat/avatar-cache-headers` (1.2)
-5. `feat/robots-ratelimit` (1.3)
-6. `feat/fewer-calls` (1.4)
-7. `chore/cache-default-on` (1.5)
-8. `fix/small-bugs` (2.2, 2.3, 2.4, 2.6, 2.8; one MR, one commit each)
-9. `fix/atom-feed` (2.5)
-10. `docs/config-and-setup` (3.1, 3.2, 3.3, 3.6)
-11. `feat/i18n-coverage` (3.4)
-12. `chore/services-readme` (3.5, 3.7)
-13. `ui/viewport-a11y` (4.1, 4.2, 4.3)
-14. `chore/canonical-forge` (5.1)
-15. 5.2 through 5.5 as independent MRs off `main`
-
-Items 8 through 15 do not depend on the cache stack and can be reordered or
-interleaved when the cache work stalls on design.
+Two things the stack taught: lint on macOS never compiles the Linux-only
+files, so run `GOOS=linux golangci-lint run` before pushing; and `go get`
+can raise the go directive in go.mod, so check the Dockerfile and
+workflow images still match it.
