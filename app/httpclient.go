@@ -1,10 +1,12 @@
 package app
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -35,24 +37,64 @@ type daThrottle struct {
 	sem  chan struct{}
 	mu   sync.Mutex
 	last time.Time
+
+	// waiting counts requests queued for a slot, for load shedding.
+	waiting atomic.Int64
 }
+
+// maxQueueWait is the longest a request may expect to queue before it is shed
+// with errUpstreamBusy. devianter gives up after 30 seconds, so a request
+// that would wait longer than this would only time out anyway, while holding
+// a place in the queue that a live request could have used.
+const maxQueueWait = 20 * time.Second
+
+// errUpstreamBusy is returned without an upstream call when the queue is
+// already deeper than a client will wait for. Error maps it to a 503.
+var errUpstreamBusy = errors.New("upstream queue full")
 
 // RoundTrip applies the rate and concurrency limits to DeviantArt requests and
 // passes everything else straight through to the base transport.
+//
+// A request whose context ends while it waits is dropped without taking a
+// turn: under a crawl, most queued requests have already been abandoned by
+// their client, and letting each one still burn an interval slot is what
+// turned the queue into a wall of timeouts.
 func (t *daThrottle) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Only throttle DeviantArt's WAF-protected API host; let everything else fly.
 	if !strings.Contains(req.URL.Hostname(), "deviantart.com") {
 		return t.base.RoundTrip(req)
 	}
+	ctx := req.Context()
 
-	// Concurrency cap: block until a slot frees up (backpressure under floods).
-	t.sem <- struct{}{}
+	// Shed before queueing when the queue already implies a wait no client
+	// will sit through.
+	if queued := t.waiting.Load(); time.Duration(queued)*daMinInterval > maxQueueWait {
+		return nil, errUpstreamBusy
+	}
+	t.waiting.Add(1)
+	defer t.waiting.Add(-1)
+
+	// Concurrency cap: wait for a slot, or give up with the caller.
+	select {
+	case t.sem <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 	defer func() { <-t.sem }()
 
-	// Rate cap: enforce a minimum interval between request starts.
+	// Rate cap: enforce a minimum interval between request starts. A request
+	// cancelled while waiting leaves last untouched, so the interval it did
+	// not use goes to the next request.
 	t.mu.Lock()
 	if wait := daMinInterval - time.Since(t.last); wait > 0 {
-		time.Sleep(wait)
+		timer := time.NewTimer(wait)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			t.mu.Unlock()
+			return nil, ctx.Err()
+		}
 	}
 	t.last = time.Now()
 	t.mu.Unlock()
