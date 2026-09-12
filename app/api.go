@@ -3,7 +3,6 @@ package app
 import (
 	"encoding/json"
 	"math/rand"
-	"net/url"
 	"strings"
 
 	"github.com/krazywarez/devianter"
@@ -59,17 +58,13 @@ func (a API) sendMedia(d *devianter.Deviation) {
 		return
 	}
 
-	// Parsed, not sliced: the signing token has to reach wixmp as a query
-	// parameter. Passing the raw tail as the path put "?token=..." inside
-	// the path, which wixmp answers with 401.
-	u, err := url.Parse(mediaURL)
-	if err != nil {
+	subdomain, path, token, ok := wixmpMedia(mediaURL)
+	if !ok {
 		a.Error("bad media url", 502)
 		return
 	}
-	subdomain := strings.TrimSuffix(strings.TrimPrefix(u.Host, "images-wixmp-"), ".wixmp.com")
 	a.main.Writer.Header().Del("Content-Type")
-	a.main.downloadAndSendMedia(subdomain, strings.TrimPrefix(u.Path, "/"), u.Query().Get("token"))
+	a.main.downloadAndSendMedia(subdomain, path, token)
 }
 
 // fetchDailyDeviations is devianter.GetDailyDeviations behind a variable so
@@ -80,8 +75,6 @@ var fetchDailyDeviations = devianter.GetDailyDeviations
 // deviations. That page is one upstream call the API cache answers for its
 // TTL, where the previous random searches were up to three uncacheable calls
 // per hit and a cheap way for a bot to burn the instance's upstream budget.
-//
-// TODO: add filters.
 func (a API) Random() {
 	dd, daErr := fetchDailyDeviations(0)
 	if daErr.RAW != nil {

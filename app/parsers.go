@@ -2,6 +2,8 @@ package app
 
 import (
 	"encoding/json"
+	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -244,6 +246,22 @@ func (s skunkyart) DeviationList(devs []devianter.Deviation, allowAtom bool, con
 
 /* DESCRIPTION/COMMENT PARSER */
 
+// emoticonURL maps an e.deviantart.net emoticon image URL to this instance's
+// emote route, by the file's base name without its extension, which is what
+// devianter.AEmedia takes. Anything else yields "".
+func emoticonURL(host, raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host != "e.deviantart.net" {
+		return ""
+	}
+	name := path.Base(u.Path)
+	name = strings.TrimSuffix(name, path.Ext(name))
+	if name == "" || name == "." || name == "/" {
+		return ""
+	}
+	return URLBuilder(host, "media", "emojitar", name, "?type=e")
+}
+
 // text is one styled run within a description: the rendered HTML, the raw source
 // it came from, and the offsets it spans in the original block.
 type text struct {
@@ -427,25 +445,25 @@ func ParseDescription(host string, dscr devianter.Text) string {
 						}
 					}
 				case "img":
+					// Only DeviantArt's emoticons are carried over, served
+					// through this instance; any other image is dropped.
 					var uri, title string
-					for b, a := range token.Attr {
+					for _, a := range token.Attr {
 						switch a.Key {
 						case "src":
-							if len(a.Val) > 9 && a.Val[8:9] == "e" {
-								uri = URLBuilder(host, "media", "emojitar", a.Val[37:len(a.Val)-4], "?type=e")
-							}
+							uri = emoticonURL(host, a.Val)
 						case "title":
 							title = a.Val
 						}
-						if title != "" {
-							for x := -1; x < b; x++ {
-								parsedDescription.WriteString(`<img src="`)
-								parsedDescription.WriteString(esc(uri))
-								parsedDescription.WriteString(`" title="`)
-								parsedDescription.WriteString(esc(title))
-								parsedDescription.WriteString(`">`)
-							}
-						}
+					}
+					if uri != "" {
+						parsedDescription.WriteString(`<img src="`)
+						parsedDescription.WriteString(esc(uri))
+						parsedDescription.WriteString(`" alt="`)
+						parsedDescription.WriteString(esc(title))
+						parsedDescription.WriteString(`" title="`)
+						parsedDescription.WriteString(esc(title))
+						parsedDescription.WriteString(`">`)
 					}
 				case "br", "li", "ul", "p", "b":
 					// The bare tag, not token.String(): that would carry over
