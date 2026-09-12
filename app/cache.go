@@ -1,7 +1,5 @@
 package app
 
-// TODO: implement JSON caching and clean up the code.
-
 import (
 	"crypto/sha1" //nolint:gosec // G505: SHA-1 is a cache-key hash here, not a security primitive
 	"encoding/base64"

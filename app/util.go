@@ -332,39 +332,69 @@ func Download(urlString string) (d Downloaded) {
 
 /* PARSING HELPERS */
 
+// wixmpMedia splits a wixmp CDN URL into the pieces the media proxy takes:
+// the variable hostname label, the path without its leading slash, and the
+// signing token. ok is false for anything that is not wixmp media.
+func wixmpMedia(raw string) (subdomain, path, token string, ok bool) {
+	u, err := url.Parse(raw)
+	if err != nil || !strings.HasPrefix(u.Host, "images-wixmp-") || !strings.HasSuffix(u.Host, ".wixmp.com") {
+		return "", "", "", false
+	}
+	subdomain = strings.TrimSuffix(strings.TrimPrefix(u.Host, "images-wixmp-"), ".wixmp.com")
+	return subdomain, strings.TrimPrefix(u.Path, "/"), u.Query().Get("token"), true
+}
+
+// proxiedMediaURL is the instance URL that serves raw through the media proxy,
+// with the token and a download filename as query parameters, or "" when raw is
+// not wixmp media. host is the request's scheme and host, as taken by URLBuilder.
+func proxiedMediaURL(host, raw, filename string) string {
+	subdomain, path, token, ok := wixmpMedia(raw)
+	if !ok {
+		return ""
+	}
+	q := url.Values{}
+	if token != "" {
+		q.Set("token", token)
+	}
+	if filename != "" {
+		q.Set("filename", filename)
+	}
+	return URLBuilder(host, "media", "file", subdomain, path) + "?" + q.Encode()
+}
+
 // ParseMedia returns the URL to serve for media: a link back through this
 // instance's media proxy when proxying is on, or DeviantArt's own URL when it is
 // off. An optional thumb width selects a thumbnail instead of the full image.
 // host is the request's scheme and host, as taken by URLBuilder.
 func ParseMedia(host string, media devianter.Media, thumb ...int) string {
 	mediaURL, filename := devianter.UrlFromMedia(media, thumb...)
-	if len(mediaURL) != 0 && CFG.Proxy {
-		mediaURL = mediaURL[21:]
-		dot := strings.Index(mediaURL, ".")
-		if filename == "" {
-			filename = "image.gif"
-		}
-		return URLBuilder(host, "media", "file", mediaURL[:dot], mediaURL[dot+11:], "&filename=", filename)
-	} else if !CFG.Proxy {
+	if mediaURL == "" || !CFG.Proxy {
 		return mediaURL
 	}
-	return ""
+	if filename == "" {
+		filename = "image.gif"
+	}
+	return proxiedMediaURL(host, mediaURL, filename)
 }
 
-// ConvertDeviantArtURLToSkunkyArt rewrites a deviantart.com post link into the
-// equivalent link on this instance. It returns an empty string for URLs it does
-// not handle, including sta.sh links. host is the request's scheme and host, as
+// ConvertDeviantArtURLToSkunkyArt rewrites a deviantart.com post link, in the
+// www.deviantart.com/<author>/art/<name> or <author>.deviantart.com/art/<name>
+// form, into the equivalent link on this instance. It returns "" for anything
+// else, including sta.sh links. host is the request's scheme and host, as
 // taken by URLBuilder.
-func ConvertDeviantArtURLToSkunkyArt(host, url string) (output string) {
-	if len(url) > 32 && url[27:32] != "stash" {
-		url = url[27:]
-		firstshash := strings.Index(url, "/")
-		lastshash := firstshash + strings.Index(url[firstshash+1:], "/")
-		if lastshash != -1 {
-			output = URLBuilder(host, "post", url[:firstshash], url[lastshash+2:])
-		}
+func ConvertDeviantArtURLToSkunkyArt(host, raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || !strings.HasSuffix(u.Host, "deviantart.com") {
+		return ""
 	}
-	return
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	switch {
+	case len(parts) == 3 && parts[1] == "art" && parts[0] != "stash":
+		return URLBuilder(host, "post", parts[0], parts[2])
+	case len(parts) == 2 && parts[0] == "art" && u.Host != "www.deviantart.com":
+		return URLBuilder(host, "post", strings.TrimSuffix(u.Host, ".deviantart.com"), parts[1])
+	}
+	return ""
 }
 
 // BuildUserPlate renders the small avatar-and-username block linking to a user's
@@ -386,13 +416,10 @@ func BuildUserPlate(host, name string) string {
 // GetValueOfTag returns the text of the tokenizer's next token, or an empty
 // string if that token is not text.
 func GetValueOfTag(t *html.Tokenizer) string {
-	for tt := t.Next(); ; {
-		if tt == html.TextToken {
-			return string(t.Text())
-		} else {
-			return ""
-		}
+	if t.Next() == html.TextToken {
+		return string(t.Text())
 	}
+	return ""
 }
 
 // DeviationList describes the pagination state of a list of artworks: how many
