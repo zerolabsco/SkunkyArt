@@ -15,10 +15,13 @@ below where they overlap.
 
 ## Status
 
-Everything below except 5.3 and 5.5 shipped in v1.5.0 (2026-09-11), with
-v1.5.1 fixing the release build. Merge requests !6 through !25 on gitbay.
-Still open: #33 (LibRedirect submission), #1, #2, #3 and #6 from the
-original list, which need real DeviantArt payloads to work from.
+Everything below except 5.3 shipped in v1.5.0 (2026-09-11), with v1.5.1
+fixing the release build. Six patch releases followed on 2026-09-11 and
+2026-09-12 from running the public instance; see "After v1.5.0" at the
+end. Of the original six issues, #1, #3, #4, #5 and #6 are closed by
+merged work and #2 is closed as not possible for a guest session. The
+one open issue is #33, the LibRedirect submission, which needs the
+maintainer's account.
 
 ## Ordering principle
 
@@ -376,3 +379,88 @@ Two things the stack taught: lint on macOS never compiles the Linux-only
 files, so run `GOOS=linux golangci-lint run` before pushing; and `go get`
 can raise the go directive in go.mod, so check the Dockerfile and
 workflow images still match it.
+
+## After v1.5.0
+
+Everything here came out of deploying v1.5 to art.krz.sh and watching it.
+
+### v1.5.1 (!24, !25)
+
+go.mod had moved to Go 1.26 when x/sync came in while the Dockerfile and
+the binaries job still used 1.25, so the v1.5.0 tag built no image. Both
+now match go.mod. The tarball job also failed on VCS stamping inside the
+build container, fixed with `-buildvcs=false`.
+
+### v1.5.2 (!27, !28)
+
+The instance's VPN exit was banned by DeviantArt's WAF and every
+DeviantArt-backed page 502d until someone restarted the stack.
+
+- API cache entries past their TTL are kept for `api-cache.stale`
+  (default 1h) and served when upstream fails or answers 403 or 429. A
+  block starts a one minute backoff during which the instance stops
+  asking.
+- `/api/random` answered 401 with proxying on: the media signing token
+  was inside the path. Fixed, and `Download` sits behind a seam.
+- The session bootstrap runs before the listener opens, so the first
+  seconds after a restart no longer 502.
+
+Operationally: the instance moved off the VPN to its own address, which
+was clean at the time, and the container got a real log driver (it had
+`none`, which hid every error line).
+
+### v1.5.3 (!29)
+
+The direct address was banned within an hour. `upstream.min-interval-ms`
+and `upstream.max-concurrent` replace the source constants; the
+instance runs at 1000 ms and one in flight. The ban lifted after about
+seventy minutes. The instance also raised `api-cache.ttl` to 30
+minutes and `stale` to a day, and a Cloudflare managed-challenge rule
+now covers non-browser clients on search, post and profile paths.
+
+### v1.5.4 (!30, !31)
+
+Cache rotation trims the oldest files down to `max-size` instead of
+emptying the directory, and never touches the directory itself, which
+on a bind mount logged `unlinkat` and `mkdir` errors every pass (#36).
+The per-platform stat files went with it. x/net bumped (#35).
+
+### v1.5.5 (!32)
+
+A crawler walking post pages at 70 a minute produced 733 upstream
+timeouts in ten minutes while the address stayed unbanned: each queued
+request still took its interval turn after its client had timed out.
+The throttle now honours the request context, and sheds a request that
+would queue longer than 20 seconds with a 503 and `Retry-After`. The
+instance's `rate-limit` dropped to 20 per minute, burst 10.
+
+### v1.5.6 (!33, !34)
+
+The real cause of #3: DeviantArt's editor stores descriptions and
+comments as a document tree (`{"version":1,"document":...}`), not
+Draft.js blocks, so every current description rendered empty. A new
+renderer covers the node set seen in 92 live payloads: paragraphs,
+headings, lists, quotes, code, breaks, rules, text marks, emotes (#6),
+embedded artworks, GIF embeds and mentions. Media and post URLs are
+parsed instead of sliced by offset (#1), and old HTML emotes map by
+image name.
+
+### Closed without code
+
+#2 search filters: DeviantArt's guest search ignores every `order`
+value the site itself uses, and the deviations endpoint redirects
+guests. Nothing to expose. #4 and #5 were covered by the instance
+checker and the Makefile.
+
+### Lessons
+
+- DeviantArt bans an address on volume, not on whether it is a VPN.
+  Pacing, caching and shedding at the instance are what keep it clean;
+  rotating exits only buys an hour.
+- A restart empties the in-memory API cache, so a ban right after a
+  deploy has nothing stale to serve. Deploy when the instance is quiet.
+- Log driver `none` is a trap. Every incident here was diagnosed from
+  lines that driver would have dropped.
+- Fetch real payloads from a host DeviantArt accepts before touching a
+  parser; the format had changed under the old one.
+
