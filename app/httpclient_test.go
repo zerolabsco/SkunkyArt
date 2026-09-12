@@ -1,11 +1,15 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/krazywarez/devianter"
 )
 
 // stubTransport records how many requests reached it and returns an empty 200.
@@ -141,5 +145,104 @@ func TestInstallDAThrottlePreservesProxy(t *testing.T) {
 	}
 	if base.Proxy == nil {
 		t.Error("base transport lost its Proxy func: HTTPS_PROXY / VPN egress would break")
+	}
+}
+
+// countingRT counts base round trips for the throttle tests.
+type countingRT struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (c *countingRT) RoundTrip(r *http.Request) (*http.Response, error) {
+	c.mu.Lock()
+	c.calls++
+	c.mu.Unlock()
+	return &http.Response{StatusCode: 200, Body: http.NoBody, Request: r}, nil
+}
+
+func daRequest(ctx context.Context) *http.Request {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://www.deviantart.com/_puppy/x", nil)
+	return req
+}
+
+// TestThrottleShedsADeepQueue pins load shedding: with more requests queued
+// than the client timeout can absorb, a new one is refused at once with
+// errUpstreamBusy and never reaches upstream.
+func TestThrottleShedsADeepQueue(t *testing.T) {
+	interval := daMinInterval
+	daMinInterval = time.Second
+	defer func() { daMinInterval = interval }()
+	base := &countingRT{}
+	th := &daThrottle{base: base, sem: make(chan struct{}, 1)}
+	th.waiting.Store(int64(maxQueueWait/time.Second) + 1)
+
+	start := time.Now()
+	_, err := th.RoundTrip(daRequest(context.Background()))
+
+	if !errors.Is(err, errUpstreamBusy) {
+		t.Fatalf("err = %v, want errUpstreamBusy", err)
+	}
+	if time.Since(start) > 100*time.Millisecond || base.calls != 0 {
+		t.Errorf("shed request took %v and made %d upstream calls, want immediate and none", time.Since(start), base.calls)
+	}
+}
+
+// TestThrottleDropsACancelledRequestWaitingForASlot pins that a request whose
+// client has gone does not sit in the queue: with the only slot held, a
+// cancelled context returns at once.
+func TestThrottleDropsACancelledRequestWaitingForASlot(t *testing.T) {
+	base := &countingRT{}
+	th := &daThrottle{base: base, sem: make(chan struct{}, 1)}
+	th.sem <- struct{}{} // hold the only slot
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	start := time.Now()
+	_, err := th.RoundTrip(daRequest(ctx))
+
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	if time.Since(start) > 100*time.Millisecond || base.calls != 0 {
+		t.Errorf("took %v with %d upstream calls, want immediate and none", time.Since(start), base.calls)
+	}
+}
+
+// TestThrottleCancelledDuringIntervalKeepsTheSlot pins that a request
+// cancelled while waiting out the interval does not consume it: the next
+// live request starts as soon as the original interval allows.
+func TestThrottleCancelledDuringIntervalKeepsTheSlot(t *testing.T) {
+	interval := daMinInterval
+	daMinInterval = 300 * time.Millisecond
+	defer func() { daMinInterval = interval }()
+	base := &countingRT{}
+	th := &daThrottle{base: base, sem: make(chan struct{}, 1)}
+
+	if _, err := th.RoundTrip(daRequest(context.Background())); err != nil {
+		t.Fatal(err)
+	}
+	first := th.last
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := th.RoundTrip(daRequest(ctx)); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want context.DeadlineExceeded", err)
+	}
+	if th.last != first {
+		t.Error("a cancelled request advanced the interval clock")
+	}
+	if base.calls != 1 {
+		t.Errorf("%d upstream calls, want 1: the cancelled request must not go upstream", base.calls)
+	}
+}
+
+// TestErrorPageMapsAShedRequestTo503 pins the user-facing side: a shed
+// request is a 503 with Retry-After, not a DeviantArt error.
+func TestErrorPageMapsAShedRequestTo503(t *testing.T) {
+	rec := httptest.NewRecorder()
+	skunkyart{Writer: rec, Host: "http://localhost"}.Error(devianter.Error{Error: "devianter: Get ...: " + errUpstreamBusy.Error()})
+	if rec.Code != 503 || rec.Header().Get("Retry-After") != "5" {
+		t.Errorf("status %d Retry-After %q, want 503 and 5", rec.Code, rec.Header().Get("Retry-After"))
 	}
 }

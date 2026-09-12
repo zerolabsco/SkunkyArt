@@ -226,6 +226,14 @@ func URLBuilder(host string, strs ...string) string {
 // neither readable nor safe to echo.
 func (s skunkyart) Error(dAerr devianter.Error) {
 	s.Writer.Header().Del("Cache-Control")
+
+	// A shed request is not an upstream failure: the instance is busy and the
+	// client should come back shortly rather than treat the page as broken.
+	if strings.Contains(dAerr.Error, errUpstreamBusy.Error()) {
+		s.Writer.Header().Set("Retry-After", "5")
+		s.ReturnHTTPError(http.StatusServiceUnavailable)
+		return
+	}
 	s.Writer.WriteHeader(502)
 
 	reason, _, _ := strings.Cut(dAerr.Error, "\n")
