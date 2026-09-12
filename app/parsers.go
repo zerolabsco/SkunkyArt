@@ -276,8 +276,15 @@ type text struct {
 // rewriting embedded links and artwork references to point at this instance.
 // host is the request's scheme and host, as taken by URLBuilder.
 //
-// TODO: rewrite this whole mess.
+// Three formats arrive: the current editor's document JSON (a "document"
+// key), handled by renderDocument; the older Draft.js JSON ("blocks" and
+// "entityMap"), handled below and kept for the posts that still carry it; and
+// plain HTML markup from before either.
 func ParseDescription(host string, dscr devianter.Text) string {
+	if doc, ok := parseDocument(dscr.Html.Markup); ok {
+		return renderDocument(host, doc)
+	}
+
 	var parsedDescription strings.Builder
 	TagBuilder := func(content string, tags ...string) string {
 		l := len(tags)
@@ -296,12 +303,7 @@ func ParseDescription(host string, dscr devianter.Text) string {
 		}
 		return content
 	}
-	DeleteTrackingFromURL := func(url string) string {
-		if len(url) > 42 && url[:42] == "https://www.deviantart.com/users/outgoing?" {
-			url = url[42:]
-		}
-		return url
-	}
+	DeleteTrackingFromURL := deleteTrackingFromURL
 
 	if description, dl := dscr.Html.Markup, len(dscr.Html.Markup); dl != 0 &&
 		description[0] == '{' &&
